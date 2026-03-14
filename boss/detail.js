@@ -24,7 +24,8 @@ async function(args) {
     job: {
       name: job.jobName, salary: job.salaryDesc, experience: job.experienceName,
       degree: job.degreeName, location: job.locationName, address: job.address,
-      skills: job.showSkills, description: job.postDescription, status: job.jobStatusDesc
+      skills: job.showSkills, description: job.postDescription, status: job.jobStatusDesc,
+      url: job.encryptId ? `https://www.zhipin.com/job_detail/${job.encryptId}.html` : undefined
     },
     company: {
       name: brand.brandName, stage: brand.stageName, scale: brand.scaleName,

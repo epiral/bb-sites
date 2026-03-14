@@ -37,7 +37,8 @@ async function(args) {
     skills: j.skills, welfare: j.welfareList,
     boss: j.bossName, bossTitle: j.bossTitle, bossOnline: j.bossOnline,
     industry: j.brandIndustry, scale: j.brandScaleName, stage: j.brandStageName,
-    jobId: j.encryptJobId, securityId: j.securityId
+    jobId: j.encryptJobId, securityId: j.securityId,
+    url: j.encryptJobId ? `https://www.zhipin.com/job_detail/${j.encryptJobId}.html` : undefined
   }));
   return {query: args.query, city, page, total: zpData.totalCount, count: jobs.length, jobs};
 }

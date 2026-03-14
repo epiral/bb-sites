@@ -133,7 +133,7 @@ async function(args) {
   for (let i = 0; i < limit; i++) {
     posts.push({
       author: postMeta[i].name,
-      postUrl: postMeta[i].slug,
+      url: postMeta[i].slug,
       text: textBlocks[i].text.substring(0, 800)
     });
   }
@@ -144,7 +144,7 @@ async function(args) {
     for (let i = 0; i < fallbackLimit; i++) {
       posts.push({
         author: postMeta[i].name,
-        postUrl: postMeta[i].slug,
+        url: postMeta[i].slug,
         text: '(text extraction failed)'
       });
     }

@@ -29,7 +29,8 @@ async function(args) {
     id: p.id, content: p.content, topic: p.topic?.content,
     author: p.user?.screenName, avatar: p.user?.avatarImage?.smallPicUrl,
     likes: p.likeCount, comments: p.commentCount, reposts: p.repostCount,
-    createdAt: p.createdAt, pictures: (p.pictures || []).map(pic => pic.picUrl)
+    createdAt: p.createdAt, pictures: (p.pictures || []).map(pic => pic.picUrl),
+    url: 'https://web.okjike.com/post-detail/' + p.id + '/original'
   }));
   return {query: args.query, count: posts.length, posts};
 }

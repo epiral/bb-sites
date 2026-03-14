@@ -26,7 +26,8 @@ async function(args) {
   const posts = items.filter(i => i.type === 'ORIGINAL_POST' || i.type === 'REPOST').map(p => ({
     id: p.id, type: p.type, content: p.content, topic: p.topic?.content,
     author: p.user?.screenName, likes: p.likeCount, comments: p.commentCount,
-    createdAt: p.createdAt
+    createdAt: p.createdAt,
+    url: 'https://web.okjike.com/post-detail/' + p.id + '/original'
   }));
   return {count: posts.length, posts};
 }
