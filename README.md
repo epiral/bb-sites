@@ -30,11 +30,19 @@ bb-browser site reddit/thread <url>        # run with args
 | `twitter/thread` | `tweet_id` | Tweet + all replies (supports URL or numeric ID) |
 
 ### Xiaohongshu (小红书)
-| Command | Args | Description |
-|---------|------|-------------|
-| `xiaohongshu/me` | — | Current logged-in user info |
+| Command | Args | Method | Description |
+|---------|------|--------|-------------|
+| `xiaohongshu/me` | — | A | Current logged-in user info |
+| `xiaohongshu/feed` | `count` (optional) | A | Homepage recommended feed |
+| `xiaohongshu/search` | `keyword` | C | Search notes |
+| `xiaohongshu/note` | `note_id`, `xsec_token` (optional) | A | Note detail (title, body, interactions) |
+| `xiaohongshu/comments` | `note_id`, `xsec_token` (optional) | A | Note comments |
+| `xiaohongshu/user_posts` | `user_id` | A | User's published notes |
 
-> Note: Xiaohongshu uses request signing (X-s headers). Adapters use XMLHttpRequest to inherit the page's signing automatically.
+> **Three methods for signed APIs:**
+> - **A**: Self-signing via webpack modules (`seccore_signv2` + `mnsv2`). Works for most endpoints.
+> - **B**: `bb-browser network requests --with-body` — passive capture of page's own signed requests. Zero risk.
+> - **C**: Pinia store actions — triggers page's full signing + interceptor chain. For heavily protected endpoints (search).
 
 ### GitHub
 | Command | Args | Description |
