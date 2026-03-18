@@ -1,12 +1,12 @@
 # bb-sites
 
-Community site adapters for [bb-browser](https://github.com/epiral/bb-browser) — turning websites into CLI commands.
+Community site adapters for **[bb-browser](https://github.com/epiral/bb-browser)** — turning websites into CLI commands.
 
-Each site adapter is a JS function that runs inside your browser via `bb-browser eval`. The browser is already logged in — no API keys, no cookie extraction, no anti-bot bypass.
+> **[bb-browser](https://github.com/epiral/bb-browser)** is a CLI + MCP server that lets AI agents control your real Chrome browser — with your login state, cookies, and sessions intact. No headless browser, no API keys, no anti-bot bypass.
+
+This repo provides **95 ready-to-use adapters** across **35 platforms** — each a JS function that runs inside your logged-in browser via `bb-browser eval`.
 
 [English](README.md) · [中文](README.zh-CN.md)
-
-> **95 adapters** across **35 platforms** — and growing.
 
 ## Quick Start
 
@@ -127,7 +127,7 @@ bb-browser site duckduckgo/search "Claude Code"
 
 # Social media
 bb-browser site twitter/search "claude code"
-bb-browser site twitter/tweets plantegg
+bb-browser site twitter/tweets elikiio
 bb-browser site reddit/thread https://reddit.com/r/programming/comments/...
 bb-browser site weibo/hot
 
