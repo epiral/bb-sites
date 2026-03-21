@@ -19,22 +19,29 @@ async function(args) {
   const ct0 = document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('ct0='))?.split('=')[1];
   if (!ct0) return {error: 'No ct0 cookie', hint: 'Please log in to https://x.com first.'};
 
-  // Access webpack module to generate x-client-transaction-id
-  let __webpack_require__;
-  const chunkId = '__bb_s_' + Date.now();
-  window.webpackChunk_twitter_responsive_web.push([[chunkId], {}, (req) => { __webpack_require__ = req; }]);
-  const txMod = __webpack_require__(83914);
-  const genTxId = txMod.jJ;
+  // x-client-transaction-id 生成逻辑在 X 前端经常变动，失败时降级为无该头请求
+  let txId = null;
+  try {
+    let __webpack_require__;
+    const chunkId = '__bb_s_' + Date.now();
+    if (window.webpackChunk_twitter_responsive_web?.push) {
+      window.webpackChunk_twitter_responsive_web.push([[chunkId], {}, (req) => { __webpack_require__ = req; }]);
+      const txMod = __webpack_require__?.(83914);
+      const genTxId = txMod?.jJ;
+      if (typeof genTxId === 'function') {
+        txId = await genTxId('x.com', '/i/api/graphql/oKkjeoNFNQN7IeK7AHYc0A/SearchTimeline', 'GET');
+      }
+    }
+  } catch (_) {}
 
   const bearer = 'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
   const path = '/i/api/graphql/oKkjeoNFNQN7IeK7AHYc0A/SearchTimeline';
-  const txId = await genTxId('x.com', path, 'GET');
 
   const _h = {
     'Authorization': 'Bearer ' + bearer, 'X-Csrf-Token': ct0,
-    'X-Twitter-Auth-Type': 'OAuth2Session', 'X-Twitter-Active-User': 'yes',
-    'X-Client-Transaction-Id': txId
+    'X-Twitter-Auth-Type': 'OAuth2Session', 'X-Twitter-Active-User': 'yes'
   };
+  if (txId) _h['X-Client-Transaction-Id'] = txId;
 
   const count = Math.min(parseInt(args.count) || 20, 50);
   const product = (args.type === 'top') ? 'Top' : 'Latest';
@@ -60,30 +67,110 @@ async function(args) {
     longform_notetweets_rich_text_read_enabled: true, longform_notetweets_inline_media_enabled: false,
     responsive_web_enhance_cards_enabled: false
   });
-  const url = path + '?variables=' + encodeURIComponent(variables) + '&features=' + encodeURIComponent(features);
-  const resp = await fetch(url, {headers: _h, credentials: 'include'});
-  if (!resp.ok) return {error: 'HTTP ' + resp.status, hint: 'queryId may have changed'};
-  const d = await resp.json();
+  const normalizeGraphql = (d) => {
+    const instructions = d.data?.search_by_raw_query?.search_timeline?.timeline?.instructions || [];
+    const tweets = [];
+    for (const inst of instructions) {
+      for (const entry of (inst.entries || [])) {
+        const r = entry.content?.itemContent?.tweet_results?.result;
+        if (!r) continue;
+        const tw = r.tweet || r;
+        const l = tw.legacy || {};
+        if (!tw.rest_id) continue;
+        const u = tw.core?.user_results?.result;
+        const nt = tw.note_tweet?.note_tweet_results?.result?.text;
+        const screenName = u?.legacy?.screen_name || u?.core?.screen_name;
+        tweets.push({id: tw.rest_id, author: screenName,
+          name: u?.legacy?.name || u?.core?.name,
+          url: 'https://x.com/' + (screenName || '_') + '/status/' + tw.rest_id,
+          text: nt || l.full_text || '', likes: l.favorite_count, retweets: l.retweet_count,
+          in_reply_to: l.in_reply_to_status_id_str || undefined, created_at: l.created_at});
+      }
+    }
+    return tweets;
+  };
 
-  const instructions = d.data?.search_by_raw_query?.search_timeline?.timeline?.instructions || [];
+  const normalizeAdaptive = (d) => {
+    const users = d.globalObjects?.users || {};
+    const tweetsObj = d.globalObjects?.tweets || {};
+    const tweets = [];
+    for (const id of Object.keys(tweetsObj)) {
+      const t = tweetsObj[id] || {};
+      const u = users[t.user_id_str] || {};
+      tweets.push({
+        id: t.id_str || id,
+        author: u.screen_name,
+        name: u.name,
+        url: 'https://x.com/' + (u.screen_name || '_') + '/status/' + (t.id_str || id),
+        text: t.full_text || t.text || '',
+        likes: t.favorite_count,
+        retweets: t.retweet_count,
+        in_reply_to: t.in_reply_to_status_id_str || undefined,
+        created_at: t.created_at
+      });
+    }
+    tweets.sort((a, b) => (new Date(b.created_at || 0)) - (new Date(a.created_at || 0)));
+    return tweets.slice(0, count);
+  };
+
+  const safeJson = async (r) => {
+    const t = await r.text();
+    if (!t) return null;
+    try { return JSON.parse(t); } catch { return null; }
+  };
+
+  const scrapeSearchPage = async () => {
+    const searchUrl = 'https://x.com/search?q=' + encodeURIComponent(args.query) + '&src=typed_query&f=' + ((args.type === 'top') ? 'top' : 'live');
+    if (!location.href.includes('/search?')) {
+      return { __needOpenSearch: searchUrl };
+    }
+    await new Promise(r => setTimeout(r, 1200));
+
+    const rows = [];
+    const articles = Array.from(document.querySelectorAll('article')).slice(0, count);
+    for (const a of articles) {
+      const textNode = a.querySelector('[data-testid="tweetText"]');
+      const link = a.querySelector('a[href*="/status/"]');
+      const userLink = a.querySelector('a[href^="/"][role="link"]');
+      const url = link ? ('https://x.com' + link.getAttribute('href')) : undefined;
+      const author = userLink ? (userLink.getAttribute('href') || '').replace(/^\//, '').split('/')[0] : undefined;
+      const text = textNode ? textNode.innerText.trim() : '';
+      if (!text && !url) continue;
+      const id = (url && url.split('/status/')[1]) ? url.split('/status/')[1].split('?')[0] : undefined;
+      rows.push({ id, author, url, text });
+    }
+    return rows;
+  };
+
+  const url = path + '?variables=' + encodeURIComponent(variables) + '&features=' + encodeURIComponent(features);
+  let resp = await fetch(url, {headers: _h, credentials: 'include'});
   let tweets = [];
-  for (const inst of instructions) {
-    for (const entry of (inst.entries || [])) {
-      const r = entry.content?.itemContent?.tweet_results?.result;
-      if (!r) continue;
-      const tw = r.tweet || r;
-      const l = tw.legacy || {};
-      if (!tw.rest_id) continue;
-      const u = tw.core?.user_results?.result;
-      const nt = tw.note_tweet?.note_tweet_results?.result?.text;
-      const screenName = u?.legacy?.screen_name || u?.core?.screen_name;
-      tweets.push({id: tw.rest_id, author: screenName,
-        name: u?.legacy?.name || u?.core?.name,
-        url: 'https://x.com/' + (screenName || '_') + '/status/' + tw.rest_id,
-        text: nt || l.full_text || '', likes: l.favorite_count, retweets: l.retweet_count,
-        in_reply_to: l.in_reply_to_status_id_str || undefined, created_at: l.created_at});
+
+  if (resp.ok) {
+    const d = await safeJson(resp);
+    if (d) tweets = normalizeGraphql(d);
+  } else if (resp.status === 404) {
+    // fallback: 旧版内部搜索接口
+    const adaptiveUrl = '/i/api/2/search/adaptive.json?q=' + encodeURIComponent(args.query)
+      + '&count=' + count
+      + '&tweet_mode=extended'
+      + '&result_filter=tweets'
+      + '&query_source=typed_query';
+    const resp2 = await fetch(adaptiveUrl, {headers: _h, credentials: 'include'});
+    if (resp2.ok) {
+      const d2 = await safeJson(resp2);
+      if (d2) tweets = normalizeAdaptive(d2);
     }
   }
 
-  return {query: args.query, product, count: tweets.length, tweets};
+  // 最终降级：直接抓搜索页 DOM
+  if (!tweets || tweets.length === 0) {
+    const fallback = await scrapeSearchPage();
+    if (fallback?.__needOpenSearch) {
+      return {error: 'Search page not open', hint: 'Open and retry: ' + fallback.__needOpenSearch};
+    }
+    tweets = fallback;
+  }
+
+  return {query: args.query, product, count: tweets.length, tweets, source: (tweets[0]?.likes !== undefined ? 'api' : 'dom')};
 }
