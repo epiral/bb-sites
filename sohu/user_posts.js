@@ -7,6 +7,7 @@
     "xpt": {"required": true, "description": "用户 xpt 标识（从 URL ?xpt= 参数中提取）"},
     "days": {"required": false, "description": "获取最近 N 天内的文章（默认 90）"}
   },
+  "capabilities": ["network"],
   "readOnly": true,
   "example": "bb-browser site sohu/user_posts MzEwNzhiYTEtYTZjNy00ZjMxLTk4YTUtMmQzYzNlODc0NjA4"
 }

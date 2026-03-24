@@ -6,6 +6,7 @@
   "args": {
     "xpt": {"required": true, "description": "用户 xpt 标识（从 URL ?xpt= 参数中提取）"}
   },
+  "capabilities": ["network"],
   "readOnly": true,
   "example": "bb-browser site sohu/user MzEwNzhiYTEtYTZjNy00ZjMxLTk4YTUtMmQzYzNlODc0NjA4"
 }
