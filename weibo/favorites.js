@@ -14,16 +14,14 @@
 */
 
 async function(args) {
-  var fetchAll = args.page === 'all';
-  var format = args.format || 'json';
-  var startPage = fetchAll ? 1 : (parseInt(args.page) || 1);
+  const fetchAll = args.page === 'all';
+  const format = args.format || 'json';
+  const startPage = fetchAll ? 1 : (parseInt(args.page) || 1);
 
-  var strip = function(html) {
-    return (html || '').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').trim();
-  };
+  const strip = (html) => (html || '').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').trim();
 
-  var parsePost = function(s) {
-    var item = {
+  const parsePost = (s) => {
+    const item = {
       id: s.idstr || String(s.id),
       mblogid: s.mblogid,
       text: s.text_raw || strip(s.text || ''),
@@ -35,19 +33,19 @@ async function(args) {
       is_long_text: !!s.isLongText,
       pic_count: s.pic_num || 0,
       user: {
-        id: s.user && s.user.id,
-        screen_name: s.user && s.user.screen_name,
-        verified: s.user && s.user.verified || false
+        id: s.user?.id,
+        screen_name: s.user?.screen_name,
+        verified: s.user?.verified || false
       },
-      url: 'https://weibo.com/' + (s.user && s.user.id || '') + '/' + (s.mblogid || '')
+      url: 'https://weibo.com/' + (s.user?.id || '') + '/' + (s.mblogid || '')
     };
 
     if (s.retweeted_status) {
-      var rt = s.retweeted_status;
+      const rt = s.retweeted_status;
       item.retweeted = {
         id: rt.idstr || String(rt.id),
         text: rt.text_raw || strip(rt.text || ''),
-        user: rt.user && rt.user.screen_name || '[deleted]',
+        user: rt.user?.screen_name || '[deleted]',
         likes_count: rt.attitudes_count || 0
       };
     }
@@ -56,30 +54,39 @@ async function(args) {
   };
 
   // Fetch total count from tags API
-  var total = null;
+  let total = null;
   if (fetchAll) {
-    var tagResp = await fetch('/ajax/favorites/tags?page=1&is_show_total=1', {credentials: 'include'});
+    const tagResp = await fetch('/ajax/favorites/tags?page=1&is_show_total=1', {credentials: 'include'});
     if (tagResp.ok) {
-      var tagData = await tagResp.json();
-      total = tagData.fav_total_num || null;
+      const tagData = await tagResp.json();
+      total = tagData.fav_total_num ?? null;
     }
   }
 
-  var allPosts = [];
-  var page = startPage;
-  var maxPages = fetchAll ? 100 : 1;
+  const allPosts = [];
+  let page = startPage;
+  const PAGE_SIZE = 16;
+  const SAFETY_MAX = 1000;
+  let maxPages;
+  if (fetchAll) {
+    maxPages = (typeof total === 'number' && total > 0)
+      ? Math.min(SAFETY_MAX, Math.ceil(total / PAGE_SIZE))
+      : SAFETY_MAX;
+  } else {
+    maxPages = 1;
+  }
 
-  for (var i = 0; i < maxPages; i++) {
-    var resp = await fetch('/ajax/favorites/all_fav?page=' + page, {credentials: 'include'});
+  for (let i = 0; i < maxPages; i++) {
+    const resp = await fetch('/ajax/favorites/all_fav?page=' + page, {credentials: 'include'});
     if (!resp.ok) return {error: 'HTTP ' + resp.status, hint: 'Not logged in?'};
-    var data = await resp.json();
+    const data = await resp.json();
     if (!data.ok) return {error: 'API error: ' + (data.msg || 'unknown'), hint: 'Not logged in?'};
 
-    var items = Array.isArray(data.data) ? data.data : [];
+    const items = Array.isArray(data.data) ? data.data : [];
     if (items.length === 0) break;
 
-    for (var j = 0; j < items.length; j++) {
-      allPosts.push(parsePost(items[j]));
+    for (const item of items) {
+      allPosts.push(parsePost(item));
     }
 
     if (!fetchAll) break;
@@ -87,12 +94,12 @@ async function(args) {
   }
 
   if (format === 'md') {
-    var lines = ['# Weibo Favorites', ''];
+    const lines = ['# Weibo Favorites', ''];
     if (total !== null) lines.push('Total: ' + total + ' | Fetched: ' + allPosts.length, '');
     else lines.push('Fetched: ' + allPosts.length, '');
 
-    for (var k = 0; k < allPosts.length; k++) {
-      var p = allPosts[k];
+    for (let k = 0; k < allPosts.length; k++) {
+      const p = allPosts[k];
       lines.push('## ' + (k + 1) + '. ' + (p.user.screen_name || 'unknown'));
       lines.push('');
       lines.push('> ' + p.text.replace(/\n/g, '\n> '));
@@ -113,7 +120,7 @@ async function(args) {
     return lines.join('\n');
   }
 
-  var result = {
+  const result = {
     page: fetchAll ? 'all' : startPage,
     count: allPosts.length,
     posts: allPosts
