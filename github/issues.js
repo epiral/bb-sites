@@ -16,9 +16,16 @@
 async function(args) {
   if (!args.repo) return {error: 'Missing argument: repo'};
   const state = args.state || 'open';
-  const resp = await fetch('https://api.github.com/repos/' + args.repo + '/issues?state=' + state + '&per_page=30', {credentials: 'include'});
-  if (!resp.ok) return {error: 'HTTP ' + resp.status};
-  const issues = await resp.json();
+  const resp = await new Promise((resolve, reject) => {
+    const x = new XMLHttpRequest();
+    x.open('GET', 'https://api.github.com/repos/' + args.repo + '/issues?state=' + state + '&per_page=30');
+    x.setRequestHeader('Accept', 'application/vnd.github+json');
+    x.onload = () => resolve({status: x.status, text: x.responseText});
+    x.onerror = () => reject(new Error('Failed to fetch'));
+    x.send();
+  });
+  if (resp.status < 200 || resp.status >= 300) return {error: 'HTTP ' + resp.status};
+  const issues = JSON.parse(resp.text);
   return {
     repo: args.repo, state, count: issues.length,
     issues: issues.map(i => ({
