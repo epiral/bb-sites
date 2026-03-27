@@ -45,6 +45,8 @@ bb-browser site reddit/thread <url>        # 带参数运行
 | Twitter/X | `twitter/user`, `twitter/thread`, `twitter/search`, `twitter/tweets`, `twitter/notifications` | 用户资料、推文线程、搜索、时间线、通知 |
 | Reddit | `reddit/me`, `reddit/posts`, `reddit/thread`, `reddit/context` | 用户信息、发帖、讨论树、评论链 |
 | 微博 | `weibo/me`, `weibo/hot`, `weibo/feed`, `weibo/user`, `weibo/user_posts`, `weibo/post`, `weibo/comments` | 完整微博支持 — 资料、热搜、时间线、发帖、评论 |
+| 抖音 | `douyin/search` | 访客可访问的综合/视频公开搜索结果 |
+| 快手 | `kuaishou/feed` | 来自 `new-reco` 页的公开推荐流 |
 | 虎扑 | `hupu/hot` | 虎扑步行街热帖 |
 
 ### 💻 技术开发
@@ -130,6 +132,8 @@ bb-browser site twitter/search "claude code"
 bb-browser site twitter/tweets plantegg
 bb-browser site reddit/thread https://reddit.com/r/programming/comments/...
 bb-browser site weibo/hot
+bb-browser site douyin/search AI
+bb-browser site kuaishou/feed 5
 
 # 技术调研
 bb-browser site github/repo epiral/bb-browser
