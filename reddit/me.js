@@ -11,12 +11,14 @@
 
 async function(args) {
   // /api/me.json no longer returns user info (2025+).
-  // Strategy: extract user ID from cookie, resolve username, then fetch full profile.
+  // Strategy: extract the current-user-id from Reddit page markup, resolve username, then fetch full profile.
 
-  // 1. Extract t2_XXXXX user ID from cookies
-  const idMatch = document.cookie.match(/t2_([a-z0-9]+)_/);
+  // 1. Extract t2_XXXXX user ID from the current Reddit page markup
+  const html = document.documentElement.outerHTML;
+  const idMatch = html.match(/current-user-id="(t2_[a-z0-9]+)"/) ||
+    html.match(/user-id="(t2_[a-z0-9]+)"/);
   if (!idMatch) return {error: 'Not logged in', hint: 'Not logged in? Open reddit.com and log in.'};
-  const userId = 't2_' + idMatch[1];
+  const userId = idMatch[1];
 
   // 2. Resolve username via user_data_by_account_ids
   const idResp = await fetch('/api/user_data_by_account_ids.json?ids=' + userId, {credentials: 'include'});

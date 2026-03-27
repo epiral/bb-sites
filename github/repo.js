@@ -14,9 +14,16 @@
 
 async function(args) {
   if (!args.repo) return {error: 'Missing argument: repo', hint: 'Use owner/repo format'};
-  const resp = await fetch('https://api.github.com/repos/' + args.repo, {credentials: 'include'});
-  if (!resp.ok) return {error: 'HTTP ' + resp.status, hint: resp.status === 404 ? 'Repo not found: ' + args.repo : 'API error'};
-  const d = await resp.json();
+  const resp = await new Promise((resolve, reject) => {
+    const x = new XMLHttpRequest();
+    x.open('GET', 'https://api.github.com/repos/' + args.repo);
+    x.setRequestHeader('Accept', 'application/vnd.github+json');
+    x.onload = () => resolve({status: x.status, text: x.responseText});
+    x.onerror = () => reject(new Error('Failed to fetch'));
+    x.send();
+  });
+  if (resp.status < 200 || resp.status >= 300) return {error: 'HTTP ' + resp.status, hint: resp.status === 404 ? 'Repo not found: ' + args.repo : 'API error'};
+  const d = JSON.parse(resp.text);
   return {
     full_name: d.full_name, description: d.description, language: d.language,
     url: d.html_url || ('https://github.com/' + d.full_name),
