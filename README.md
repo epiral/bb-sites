@@ -45,6 +45,8 @@ bb-browser site reddit/thread <url>        # run with args
 | Twitter/X | `twitter/user`, `twitter/thread`, `twitter/search`, `twitter/tweets`, `twitter/notifications` | User profile, tweet threads, search, timeline, notifications |
 | Reddit | `reddit/me`, `reddit/posts`, `reddit/thread`, `reddit/context` | User info, posts, discussion trees, comment chains |
 | Weibo | `weibo/me`, `weibo/hot`, `weibo/feed`, `weibo/user`, `weibo/user_posts`, `weibo/post`, `weibo/comments` | Full Weibo (微博) support — profile, trending, timeline, posts, comments |
+| Douyin | `douyin/search` | Public search results from guest-accessible general/video pages |
+| Kuaishou | `kuaishou/feed` | Public recommended feed from the `new-reco` page |
 | Hupu | `hupu/hot` | Hupu (虎扑) hot posts |
 
 ### 💻 Tech & Dev
@@ -130,6 +132,8 @@ bb-browser site twitter/search "claude code"
 bb-browser site twitter/tweets plantegg
 bb-browser site reddit/thread https://reddit.com/r/programming/comments/...
 bb-browser site weibo/hot
+bb-browser site douyin/search AI
+bb-browser site kuaishou/feed 5
 
 # Tech research
 bb-browser site github/repo epiral/bb-browser
