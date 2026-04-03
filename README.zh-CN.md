@@ -6,7 +6,7 @@
 
 [English](README.md) · [中文](README.zh-CN.md)
 
-> **102 个适配器**，覆盖 **36 个平台** — 持续增长中。
+> **106 个适配器**，覆盖 **37 个平台** — 持续增长中。
 
 ## 快速开始
 
@@ -60,6 +60,7 @@ bb-browser site reddit/thread <url>        # 带参数运行
 | npm | `npm/search` | 搜索 npm 包 |
 | PyPI | `pypi/search`, `pypi/package` | 搜索 & 查看 Python 包详情 |
 | arXiv | `arxiv/search` | 搜索学术论文 |
+| Hugging Face | `huggingface/search`, `huggingface/model`, `huggingface/dataset`, `huggingface/space` | 搜索模型/数据集/Spaces，并读取详情 |
 | Dev.to | `devto/search` | 搜索 Dev.to 文章 |
 | V2EX | `v2ex/hot`, `v2ex/latest`, `v2ex/topic` | 最热/最新主题、主题详情 + 回复 |
 
@@ -137,6 +138,8 @@ bb-browser site github/repo epiral/bb-browser
 bb-browser site hackernews/top 10
 bb-browser site stackoverflow/search "python async await"
 bb-browser site arxiv/search "large language model"
+bb-browser site huggingface/search "bert" --type model
+bb-browser site huggingface/model "google-bert/bert-base-uncased"
 bb-browser site npm/search "react state management"
 
 # 影音娱乐
