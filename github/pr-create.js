@@ -21,31 +21,34 @@ async function(args) {
   if (!args.title) return {error: 'Missing argument: title'};
   if (!args.head) return {error: 'Missing argument: head', hint: 'Provide source branch as "user:branch" or "branch"'};
 
-  const resp = await fetch('https://api.github.com/repos/' + args.repo + '/pulls', {
-    method: 'POST',
-    credentials: 'include',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({
+  const resp = await new Promise((resolve, reject) => {
+    const x = new XMLHttpRequest();
+    x.open('POST', 'https://api.github.com/repos/' + args.repo + '/pulls');
+    x.setRequestHeader('Accept', 'application/vnd.github+json');
+    x.setRequestHeader('Content-Type', 'application/json');
+    x.onload = () => resolve({status: x.status, text: x.responseText});
+    x.onerror = () => reject(new Error('Failed to fetch'));
+    x.send(JSON.stringify({
       title: args.title,
       head: args.head,
       base: args.base || 'main',
       body: args.body || ''
-    })
+    }));
   });
 
-  if (!resp.ok) {
+  if (resp.status < 200 || resp.status >= 300) {
     const status = resp.status;
     if (status === 401 || status === 403) return {error: 'HTTP ' + status, hint: 'Not logged in to GitHub'};
     if (status === 404) return {error: 'Repo not found: ' + args.repo};
     if (status === 422) {
-      const d = await resp.json().catch(() => null);
+      const d = JSON.parse(resp.text || 'null');
       const msg = d?.errors?.[0]?.message || d?.message || 'Validation failed';
       return {error: msg, hint: 'Check that the head branch exists and has commits ahead of base'};
     }
     return {error: 'HTTP ' + status};
   }
 
-  const pr = await resp.json();
+  const pr = JSON.parse(resp.text);
   return {
     number: pr.number,
     title: pr.title,
