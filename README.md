@@ -6,7 +6,7 @@ Each site adapter is a JS function that runs inside your browser via `bb-browser
 
 [English](README.md) · [中文](README.zh-CN.md)
 
-> **102 adapters** across **36 platforms** — and growing.
+> **106 adapters** across **37 platforms** — and growing.
 
 ## Quick Start
 
@@ -60,6 +60,7 @@ bb-browser site reddit/thread <url>        # run with args
 | npm | `npm/search` | Search npm packages |
 | PyPI | `pypi/search`, `pypi/package` | Search & get Python package details |
 | arXiv | `arxiv/search` | Search academic papers |
+| Hugging Face | `huggingface/search`, `huggingface/model`, `huggingface/dataset`, `huggingface/space` | Search models/datasets/spaces and fetch details |
 | Dev.to | `devto/search` | Search Dev.to articles |
 | V2EX | `v2ex/hot`, `v2ex/latest`, `v2ex/topic` | Hot/latest topics, topic detail + replies |
 
@@ -137,6 +138,8 @@ bb-browser site github/repo epiral/bb-browser
 bb-browser site hackernews/top 10
 bb-browser site stackoverflow/search "python async await"
 bb-browser site arxiv/search "large language model"
+bb-browser site huggingface/search "bert" --type model
+bb-browser site huggingface/model "google-bert/bert-base-uncased"
 bb-browser site npm/search "react state management"
 
 # Entertainment
