@@ -114,9 +114,9 @@ bb-browser site reddit/thread <url>        # run with args
 | Platform | Commands | Description |
 |----------|----------|-------------|
 | Jike | `jike/feed`, `jike/search` | 即刻 — recommended feed & search |
-| Xiaohongshu | `xiaohongshu/me`, `xiaohongshu/feed`, `xiaohongshu/search`, `xiaohongshu/note`, `xiaohongshu/comments`, `xiaohongshu/user_posts` | 小红书 — full support via Pinia store actions |
+| Xiaohongshu | `xiaohongshu/me`, `xiaohongshu/feed`, `xiaohongshu/search`, `xiaohongshu/note`, `xiaohongshu/comments`, `xiaohongshu/user_posts` | Profile, feed, search, note details, comments, and user posts |
 
-> All Xiaohongshu (小红书) adapters use **Pinia Store Actions** — calling the page's own Vue store functions, which go through the complete signing + interceptor chain. Zero reverse engineering needed.
+> Xiaohongshu adapters now use a mix of current Pinia store state, in-page routing, and SSR state parsing. This avoids relying on stale XHR paths that no longer fire consistently on the live site.
 
 ## Usage Examples
 
@@ -153,6 +153,27 @@ bb-browser site linkedin/search "AI agent"
 
 # Translate
 bb-browser site youdao/translate hello
+```
+
+## Xiaohongshu Notes
+
+Open a logged-in `https://www.xiaohongshu.com` tab before running these commands.
+
+- `xiaohongshu/me` reads the current user store instead of assuming `/user/me` will always fire.
+- `xiaohongshu/feed` reads the live home feed store and caches `note_id -> xsec_token` pairs for follow-up commands.
+- `xiaohongshu/search` navigates to the real search route, waits for the current `search/notes` response, and supports the site's native sort options such as `latest`, `likes`, `comments`, and `collects`.
+- `xiaohongshu/note` and `xiaohongshu/comments` need a valid `xsec_token`. Pass a full note URL, or call `feed`, `search`, or `user_posts` first so the current browser session has the token cached.
+- `xiaohongshu/user_posts` parses the profile page SSR state instead of depending on old request assumptions.
+
+Typical validation flow:
+
+```bash
+bb-browser site xiaohongshu/me
+bb-browser site xiaohongshu/feed
+bb-browser site xiaohongshu/search "穿搭"
+bb-browser site xiaohongshu/note 6932814d000000001e034e67
+bb-browser site xiaohongshu/comments 6932814d000000001e034e67
+bb-browser site xiaohongshu/user_posts 67c99deb00000000070013e9
 ```
 
 ## Writing a Site Adapter
