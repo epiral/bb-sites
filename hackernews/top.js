@@ -6,7 +6,6 @@
   "args": {
     "count": {"required": false, "description": "Number of posts (default: 20, max: 50)"}
   },
-  "capabilities": ["network"],
   "readOnly": true,
   "example": "bb-browser site hackernews/top 10"
 }
@@ -14,25 +13,40 @@
 
 async function(args) {
   const count = Math.min(parseInt(args.count) || 20, 50);
-  // HN Firebase API is public, no auth needed
-  const idsResp = await fetch('https://hacker-news.firebaseio.com/v0/topstories.json');
-  if (!idsResp.ok) return {error: 'HTTP ' + idsResp.status};
-  const ids = await idsResp.json();
-  const topIds = ids.slice(0, count);
 
-  const items = await Promise.all(topIds.map(async id => {
-    const resp = await fetch('https://hacker-news.firebaseio.com/v0/item/' + id + '.json');
-    return await resp.json();
-  }));
+  // Parse HN homepage HTML instead of cross-origin Firebase API (fixes #8)
+  const resp = await fetch('https://news.ycombinator.com/');
+  if (!resp.ok) return {error: 'HTTP ' + resp.status};
+
+  const html = await resp.text();
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const rows = Array.from(doc.querySelectorAll('tr.athing')).slice(0, count);
+
+  const posts = rows.map((row, i) => {
+    const id = Number(row.getAttribute('id'));
+    const titleLink = row.querySelector('.titleline > a');
+    const subtextRow = row.nextElementSibling;
+    const scoreEl = subtextRow?.querySelector('.score');
+    const authorEl = subtextRow?.querySelector('.hnuser');
+    const links = Array.from(subtextRow?.querySelectorAll('a') || []);
+    const commentsLink = links.find(a => /comment/i.test((a.textContent || '').trim())) || links[links.length - 1];
+    const commentsText = (commentsLink?.textContent || '0').trim();
+    const comments = commentsText === 'discuss' ? 0 : parseInt(commentsText, 10) || 0;
+
+    return {
+      rank: i + 1,
+      id,
+      title: titleLink?.textContent?.trim() || null,
+      url: titleLink?.href || null,
+      hn_url: 'https://news.ycombinator.com/item?id=' + id,
+      author: authorEl?.textContent?.trim() || null,
+      score: parseInt(scoreEl?.textContent || '0', 10) || 0,
+      comments
+    };
+  }).filter(item => item.id && item.title);
 
   return {
-    count: items.length,
-    posts: items.map((item, i) => ({
-      rank: i + 1, id: item.id, title: item.title,
-      url: item.url || null,
-      hn_url: 'https://news.ycombinator.com/item?id=' + item.id,
-      author: item.by, score: item.score,
-      comments: item.descendants || 0, time: item.time
-    }))
+    count: posts.length,
+    posts
   };
 }

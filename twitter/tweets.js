@@ -5,7 +5,8 @@
   "domain": "x.com",
   "args": {
     "screen_name": {"required": true, "description": "Twitter handle (without @)"},
-    "count": {"required": false, "description": "Number of tweets (default 20, max 100)"}
+    "count": {"required": false, "description": "Number of tweets (default 20, max 100)"},
+    "cursor": {"required": false, "description": "Pagination cursor (from previous response's next_cursor)"}
   },
   "capabilities": ["network"],
   "readOnly": true,
@@ -35,10 +36,12 @@ async function(args) {
   if (!userId) return {error: 'User not found', hint: 'Check spelling: @' + args.screen_name};
 
   const count = Math.min(parseInt(args.count) || 20, 100);
-  const variables = JSON.stringify({
+  const variables = {
     userId, count, includePromotedContent: false,
     withQuickPromoteEligibilityTweetFields: true, withVoice: true
-  });
+  };
+  if (args.cursor) variables.cursor = args.cursor;
+
   const features = JSON.stringify({
     rweb_video_screen_enabled: false, profile_label_improvements_pcf_label_in_post_enabled: true,
     responsive_web_profile_redirect_enabled: false, rweb_tipjar_consumption_enabled: false,
@@ -58,15 +61,21 @@ async function(args) {
     responsive_web_enhance_cards_enabled: false
   });
   const fieldToggles = JSON.stringify({withArticlePlainText: false});
-  const url = '/i/api/graphql/Y59DTUMfcKmUAATiT2SlTw/UserTweets?variables=' + encodeURIComponent(variables) + '&features=' + encodeURIComponent(features) + '&fieldToggles=' + encodeURIComponent(fieldToggles);
+  const url = '/i/api/graphql/Y59DTUMfcKmUAATiT2SlTw/UserTweets?variables=' + encodeURIComponent(JSON.stringify(variables)) + '&features=' + encodeURIComponent(features) + '&fieldToggles=' + encodeURIComponent(fieldToggles);
   const resp = await fetch(url, {headers: _h, credentials: 'include'});
   if (!resp.ok) return {error: 'HTTP ' + resp.status, hint: 'queryId may have changed'};
   const d = await resp.json();
 
   const instructions = d.data?.user?.result?.timeline_v2?.timeline?.instructions || d.data?.user?.result?.timeline?.timeline?.instructions || [];
   let tweets = [];
+  let next_cursor = null;
   for (const inst of instructions) {
     for (const entry of (inst.entries || [])) {
+      // Extract cursor for pagination
+      if (entry.entryId?.startsWith('cursor-bottom-')) {
+        next_cursor = entry.content?.value;
+        continue;
+      }
       const r = entry.content?.itemContent?.tweet_results?.result;
       if (!r) continue;
       const tw = r.tweet || r;
@@ -84,16 +93,18 @@ async function(args) {
         tweets.push({id: tw.rest_id, type: 'retweet', author: authorName,
           url: 'https://x.com/' + (authorName || '_') + '/status/' + tw.rest_id,
           rt_author: ru?.legacy?.screen_name || ru?.core?.screen_name, text: rnt || rl.full_text || '',
-          likes: rl.favorite_count, retweets: rl.retweet_count, created_at: l.created_at});
+          likes: rl.favorite_count, retweets: rl.retweet_count, replies: rl.reply_count, created_at: l.created_at});
       } else {
         const authorName = u?.legacy?.screen_name || u?.core?.screen_name;
         tweets.push({id: tw.rest_id, type: 'tweet', author: authorName,
           url: 'https://x.com/' + (authorName || '_') + '/status/' + tw.rest_id,
-          text: nt || l.full_text || '', likes: l.favorite_count, retweets: l.retweet_count,
+          text: nt || l.full_text || '', likes: l.favorite_count, retweets: l.retweet_count, replies: l.reply_count,
           in_reply_to: l.in_reply_to_status_id_str || undefined, created_at: l.created_at});
       }
     }
   }
 
-  return {screen_name: args.screen_name, user_id: userId, count: tweets.length, tweets};
+  const result = {screen_name: args.screen_name, user_id: userId, count: tweets.length, tweets};
+  if (next_cursor) result.next_cursor = next_cursor;
+  return result;
 }
