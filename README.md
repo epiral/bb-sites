@@ -161,7 +161,7 @@ Open a logged-in `https://www.xiaohongshu.com` tab before running these commands
 
 - `xiaohongshu/me` reads the current user store instead of assuming `/user/me` will always fire.
 - `xiaohongshu/feed` reads the live home feed store and caches `note_id -> xsec_token` pairs for follow-up commands.
-- `xiaohongshu/search` navigates to the real search route and waits for the current `search/notes` response.
+- `xiaohongshu/search` navigates to the real search route, waits for the current `search/notes` response, and supports the site's native sort options such as `latest`, `likes`, `comments`, and `collects`.
 - `xiaohongshu/note` and `xiaohongshu/comments` need a valid `xsec_token`. Pass a full note URL, or call `feed`, `search`, or `user_posts` first so the current browser session has the token cached.
 - `xiaohongshu/user_posts` parses the profile page SSR state instead of depending on old request assumptions.
 
