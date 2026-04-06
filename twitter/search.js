@@ -19,18 +19,30 @@ async function(args) {
   const ct0 = document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('ct0='))?.split('=')[1];
   if (!ct0) return {error: 'No ct0 cookie', hint: 'Please log in to https://x.com first.'};
 
-  // Access webpack module to generate x-client-transaction-id (dynamic lookup, survives x.com deploys)
+  // Access webpack module to generate x-client-transaction-id and discover queryId dynamically
   let __webpack_require__;
   const chunkId = '__bb_s_' + Date.now();
   window.webpackChunk_twitter_responsive_web.push([[chunkId], {}, (req) => { __webpack_require__ = req; }]);
   let genTxId;
+  let queryId;
   for (const id of Object.keys(__webpack_require__.m)) {
-    try { const m = __webpack_require__(id); if (m?.jJ) { genTxId = m.jJ; break; } } catch {}
+    try {
+      // Find txId generator
+      if (!genTxId) { const m = __webpack_require__(id); if (m?.jJ) { genTxId = m.jJ; } }
+      // Find SearchTimeline queryId from module source
+      if (!queryId) {
+        const src = __webpack_require__.m[id].toString();
+        const qm = src.match(/queryId:\s*"([^"]+)",\s*operationName:\s*"SearchTimeline"/);
+        if (qm) queryId = qm[1];
+      }
+      if (genTxId && queryId) break;
+    } catch {}
   }
   if (!genTxId) return {error: 'Cannot find transaction-id generator', hint: 'x.com webpack structure may have changed'};
+  if (!queryId) return {error: 'Cannot find SearchTimeline queryId', hint: 'x.com API structure may have changed'};
 
   const bearer = 'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
-  const path = '/i/api/graphql/oKkjeoNFNQN7IeK7AHYc0A/SearchTimeline';
+  const path = '/i/api/graphql/' + queryId + '/SearchTimeline';
   const txId = await genTxId('x.com', path, 'GET');
 
   const _h = {
