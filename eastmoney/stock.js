@@ -1,7 +1,7 @@
 /* @meta
 {
   "name": "eastmoney/stock",
-  "description": "获取东方财富网股票实时行情",
+  "description": "东方财富股票行情 (stock quote: price, change%, volume, market cap)",
   "domain": "quote.eastmoney.com",
   "args": {
     "query": {"required": true, "description": "股票名称或代码，如 贵州茅台 或 600519"}

@@ -1,7 +1,7 @@
 /* @meta
 {
   "name": "bing/search",
-  "description": "Bing 搜索",
+  "description": "Bing 搜索 (Bing search: title, url, snippet)",
   "domain": "www.bing.com",
   "args": {
     "query": {"required": true, "description": "Search query"},
@@ -17,9 +17,9 @@ async function(args) {
   if (!query) return {error: 'query is required'};
   const count = args.count || 10;
 
-  const url = 'https://www.bing.com/search?q=' + encodeURIComponent(query) + '&count=' + count;
+  const url = '/search?q=' + encodeURIComponent(query) + '&count=' + count;
   const resp = await fetch(url, {credentials: 'include'});
-  if (!resp.ok) return {error: 'HTTP ' + resp.status};
+  if (!resp.ok) return {error: 'HTTP ' + resp.status, hint: 'Make sure a bing.com tab is open'};
 
   const html = await resp.text();
   const parser = new DOMParser();

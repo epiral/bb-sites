@@ -1,7 +1,7 @@
 /* @meta
 {
   "name": "baidu/search",
-  "description": "百度搜索",
+  "description": "百度搜索 (Baidu search: title, url, snippet)",
   "domain": "www.baidu.com",
   "args": {
     "query": {"required": true, "description": "Search query"},
@@ -37,14 +37,29 @@ async function(args) {
 
     const href = titleEl.getAttribute('href') || '';
 
-    const snippetEl = el.querySelector('.c-abstract, .c-span-last, span.content-right_8Zs40');
     let snippet = '';
-    if (snippetEl) {
-      snippet = (snippetEl.textContent || '').trim();
-    } else {
-      // fallback: grab text from common snippet containers
-      const fallback = el.querySelector('span[class*="content"], div[class*="abstract"]');
-      if (fallback) snippet = (fallback.textContent || '').trim();
+    const snippetCandidates = [
+      'span.content-right_8Zs40',
+      '.c-abstract',
+      '.c-span-last',
+      'span[class*="content-right"]',
+      'div[class*="abstract"]',
+      'span[class*="content"]',
+      '.c-row .c-span9',
+      'p'
+    ];
+    for (const sel of snippetCandidates) {
+      const snippetEl = el.querySelector(sel);
+      if (snippetEl) {
+        const text = (snippetEl.textContent || '').trim();
+        if (text && text.length > 10) { snippet = text; break; }
+      }
+    }
+    if (!snippet) {
+      const textContent = el.textContent || '';
+      const titleText = title;
+      const remaining = textContent.replace(titleText, '').trim();
+      if (remaining.length > 20) snippet = remaining.substring(0, 300);
     }
 
     results.push({

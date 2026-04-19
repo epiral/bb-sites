@@ -1,7 +1,7 @@
 /* @meta
 {
   "name": "sogou/weixin",
-  "description": "搜狗微信文章搜索",
+  "description": "搜狗微信搜索 (WeChat article search: title, snippet, account)",
   "domain": "weixin.sogou.com",
   "args": {
     "query": {"required": true, "description": "Search query"},

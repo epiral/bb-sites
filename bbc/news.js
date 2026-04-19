@@ -15,31 +15,31 @@
 async function(args) {
   const count = Math.min(parseInt(args.count) || 20, 50);
 
-  // If no query, fetch top headlines via RSS
   if (!args.query) {
-    const rssUrl = 'https://feeds.bbci.co.uk/news/rss.xml';
-    const resp = await fetch(rssUrl);
-    if (!resp.ok) return {error: 'HTTP ' + resp.status, hint: 'Failed to fetch BBC RSS feed'};
-    const xml = await resp.text();
+    const resp = await fetch('/news', {credentials: 'include'});
+    if (!resp.ok) return {error: 'HTTP ' + resp.status, hint: 'Make sure a bbc.com tab is open'};
+    const html = await resp.text();
     const parser = new DOMParser();
-    const doc = parser.parseFromString(xml, 'text/xml');
-    const items = doc.querySelectorAll('item');
+    const doc = parser.parseFromString(html, 'text/html');
+
     const headlines = [];
-    items.forEach((item, i) => {
-      if (i >= count) return;
-      const title = item.querySelector('title')?.textContent?.trim() || '';
-      const description = item.querySelector('description')?.textContent?.trim() || '';
-      const link = item.querySelector('link')?.textContent?.trim() || '';
-      const pubDate = item.querySelector('pubDate')?.textContent?.trim() || '';
-      headlines.push({title, description, url: link, pubDate});
+    const seen = new Set();
+    doc.querySelectorAll('a[href*="/news/articles/"], a[href*="/news/live/"]').forEach(a => {
+      if (headlines.length >= count) return;
+      const href = a.getAttribute('href') || '';
+      if (seen.has(href)) return;
+      const heading = a.querySelector('h2, h3, span[role="text"]');
+      const title = heading ? heading.textContent.trim() : a.textContent.trim();
+      if (!title || title.length < 5) return;
+      seen.add(href);
+      const fullUrl = href.startsWith('http') ? href : 'https://www.bbc.com' + href;
+      headlines.push({title, url: fullUrl});
     });
-    return {source: 'BBC News RSS', count: headlines.length, headlines};
+    return {source: 'BBC News', count: headlines.length, headlines};
   }
 
-  // Search mode: fetch BBC search page and parse HTML
-  const searchUrl = 'https://www.bbc.co.uk/search?q=' + encodeURIComponent(args.query);
-  const resp = await fetch(searchUrl, {credentials: 'include'});
-  if (!resp.ok) return {error: 'HTTP ' + resp.status, hint: 'Failed to fetch BBC search results'};
+  const resp = await fetch('/search?q=' + encodeURIComponent(args.query), {credentials: 'include'});
+  if (!resp.ok) return {error: 'HTTP ' + resp.status, hint: 'Make sure a bbc.com tab is open'};
   const html = await resp.text();
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');

@@ -1,7 +1,7 @@
 /* @meta
 {
   "name": "google/search",
-  "description": "Google 搜索",
+  "description": "Google 搜索 (Google search: title, url, snippet)",
   "domain": "www.google.com",
   "args": {
     "query": {"required": true, "description": "Search query"},

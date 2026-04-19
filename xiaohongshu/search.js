@@ -155,7 +155,6 @@ async function(args) {
       const user = card.user || {};
       if (!noteId || !/^[a-f0-9]+$/i.test(String(noteId))) return null;
       return {
-        id: noteId,
         note_id: noteId,
         xsec_token: xsecToken,
         title: card.displayTitle ?? card.display_title ?? card.title ?? null,
@@ -166,7 +165,6 @@ async function(args) {
         author: user.nickname ?? user.nickName ?? null,
         author_id: user.userId ?? user.user_id ?? null,
         likes: card.interactInfo?.likedCount ?? card.interact_info?.liked_count ?? null,
-        cover: card.cover?.urlDefault ?? card.cover?.urlPre ?? card.cover?.url ?? card.imageList?.[0]?.urlDefault ?? null,
         time: card.lastUpdateTime ?? card.last_update_time ?? card.time ?? null
       };
     }
@@ -436,7 +434,7 @@ async function(args) {
 
   const notes = (Array.isArray(rawItems) ? rawItems : [])
     .map(helper.mapNoteCardItem)
-    .filter((note) => note && /^[a-f0-9]+$/i.test(String(note.id)));
+    .filter((note) => note && /^[a-f0-9]+$/i.test(String(note.note_id)));
 
   if (captured && captured.success === false) {
     return {

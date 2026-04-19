@@ -1,7 +1,7 @@
 /* @meta
 {
   "name": "eastmoney/news",
-  "description": "获取东方财富网财经热点新闻",
+  "description": "东方财富财经新闻 (finance news: title, summary, source, url)",
   "domain": "www.eastmoney.com",
   "args": {
     "count": {"required": false, "description": "返回新闻条数，默认 20，最大 50"}

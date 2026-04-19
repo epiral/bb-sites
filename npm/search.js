@@ -15,27 +15,37 @@
 async function(args) {
   const query = args.query;
   if (!query) return {error: 'Missing required argument: query'};
-  const size = Math.min(args.count || 20, 250);
-  const url = `https://registry.npmjs.org/-/v1/search?text=${encodeURIComponent(query)}&size=${size}`;
-  const resp = await fetch(url);
-  if (!resp.ok) return {error: 'HTTP ' + resp.status};
-  const data = await resp.json();
-  const packages = (data.objects || []).map(obj => {
-    const pkg = obj.package || {};
-    const score = obj.score || {};
-    return {
-      name: pkg.name,
-      version: pkg.version,
-      description: (pkg.description || '').substring(0, 300),
-      author: pkg.publisher?.username || pkg.author?.name || null,
-      date: pkg.date,
-      url: pkg.links?.npm || `https://www.npmjs.com/package/${pkg.name}`,
-      homepage: pkg.links?.homepage || null,
-      repository: pkg.links?.repository || null,
-      score: Math.round((score.final || 0) * 100) / 100,
-      searchScore: Math.round((obj.searchScore || 0) * 100) / 100,
-      keywords: (pkg.keywords || []).slice(0, 8)
-    };
+  const count = Math.min(args.count || 20, 250);
+
+  const url = `https://www.npmjs.com/search?q=${encodeURIComponent(query)}`;
+  const resp = await fetch(url, {credentials: 'include'});
+  if (!resp.ok) return {error: 'HTTP ' + resp.status, hint: 'Make sure a npmjs.com tab is open'};
+
+  const html = await resp.text();
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+
+  const sections = doc.querySelectorAll('section[class]');
+  const packages = [];
+
+  sections.forEach(section => {
+    if (packages.length >= count) return;
+    const nameEl = section.querySelector('a[href^="/package/"] h3');
+    if (!nameEl) return;
+    const name = nameEl.textContent.trim();
+    const link = nameEl.closest('a');
+    const descEl = section.querySelector('p');
+    const description = descEl ? descEl.textContent.trim().substring(0, 300) : '';
+    const spans = Array.from(section.querySelectorAll('span'));
+    const versionSpan = spans.find(s => /^\d+\.\d+/.test(s.textContent.trim()));
+    const version = versionSpan ? versionSpan.textContent.trim() : null;
+
+    packages.push({
+      name,
+      version,
+      description,
+      url: `https://www.npmjs.com/package/${name}`
+    });
   });
-  return {total: data.total || packages.length, count: packages.length, packages};
+
+  return {query, count: packages.length, packages};
 }

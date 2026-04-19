@@ -2,7 +2,7 @@
 {
   "name": "smzdm/search",
   "description": "什么值得买搜索好价",
-  "domain": "www.smzdm.com",
+  "domain": "search.smzdm.com",
   "args": {
     "keyword": {"required": true, "description": "Search keyword (e.g. 耳机)"},
     "count": {"required": false, "description": "Max results to return (default: 20)"}
@@ -22,7 +22,7 @@ async function(args) {
   // Use youhui channel for deal items with prices; fall back to home channel
   var html = '';
   var channel = 'youhui';
-  var resp = await fetch('https://search.smzdm.com/ajax/?c=youhui&s=' + q + '&p=1&v=b', {
+  var resp = await fetch('/ajax/?c=youhui&s=' + q + '&p=1&v=b', {
     credentials: 'include',
     headers: {'X-Requested-With': 'XMLHttpRequest'}
   });
@@ -34,17 +34,17 @@ async function(args) {
   // If youhui channel returned no results or failed, try home channel
   if (!html || html.indexOf('feed-row-wide') === -1) {
     channel = 'home';
-    resp = await fetch('https://search.smzdm.com/ajax/?c=home&s=' + q + '&p=1&v=b', {
+    resp = await fetch('/ajax/?c=home&s=' + q + '&p=1&v=b', {
       credentials: 'include',
       headers: {'X-Requested-With': 'XMLHttpRequest'}
     });
-    if (!resp.ok) return {error: 'HTTP ' + resp.status, hint: 'Navigate to www.smzdm.com first'};
+    if (!resp.ok) return {error: 'HTTP ' + resp.status, hint: 'Navigate to search.smzdm.com first'};
     html = await resp.text();
   }
 
   // Check for anti-bot page
   if (html.indexOf('probe.js') !== -1 && html.indexOf('feed-row-wide') === -1) {
-    return {error: 'Anti-bot protection triggered', hint: 'Open www.smzdm.com in bb-browser first to pass verification'};
+    return {error: 'Anti-bot protection triggered', hint: 'Open search.smzdm.com in bb-browser first to pass verification'};
   }
 
   var parser = new DOMParser();

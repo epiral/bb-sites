@@ -4,8 +4,8 @@
   "description": "Search arXiv papers by query",
   "domain": "arxiv.org",
   "args": {
-    "query": {"type": "string", "required": true, "description": "Search query"},
-    "count": {"type": "number", "default": 10, "description": "Number of results (max 50)"}
+    "query": {"required": true, "description": "Search query"},
+    "count": {"required": false, "description": "Number of results (default 10, max 50)"}
   },
   "readOnly": true,
   "example": "bb-browser site arxiv/search \"large language model\""
@@ -17,53 +17,61 @@ async function(args) {
   if (!query) return {error: 'query is required'};
   const count = Math.min(args.count || 10, 50);
 
-  const url = `https://export.arxiv.org/api/query?search_query=all:${encodeURIComponent(query)}&start=0&max_results=${count}`;
-  const resp = await fetch(url);
-  if (!resp.ok) return {error: 'HTTP ' + resp.status};
+  const url = `/search/?query=${encodeURIComponent(query)}&searchtype=all&start=0`;
+  const resp = await fetch(url, {credentials: 'include'});
+  if (!resp.ok) return {error: 'HTTP ' + resp.status, hint: 'Make sure an arxiv.org tab is open'};
 
-  const xml = await resp.text();
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(xml, 'text/xml');
+  const html = await resp.text();
+  const doc = new DOMParser().parseFromString(html, 'text/html');
 
-  const entries = doc.querySelectorAll('entry');
-  const papers = Array.from(entries).map(entry => {
-    const getText = (tag) => {
-      const el = entry.querySelector(tag);
-      return el ? el.textContent.trim() : '';
-    };
+  const items = doc.querySelectorAll('li.arxiv-result, ol.breathe-horizontal > li');
+  const papers = [];
 
-    const authors = Array.from(entry.querySelectorAll('author > name'))
-      .map(n => n.textContent.trim());
+  items.forEach(li => {
+    if (papers.length >= count) return;
+    const titleEl = li.querySelector('.title');
+    const title = titleEl ? titleEl.textContent.trim().replace(/\s+/g, ' ') : '';
+    if (!title) return;
 
-    const linkEl = entry.querySelector('link[title="pdf"]');
-    const pdfLink = linkEl ? linkEl.getAttribute('href') : '';
+    const idEl = li.querySelector('.list-title a');
+    const rawHref = idEl?.getAttribute('href') || '';
+    const absLink = rawHref.startsWith('/') ? 'https://arxiv.org' + rawHref : rawHref;
+    const arxivId = rawHref.replace(/^.*\/abs\//, '');
 
-    const absLink = entry.querySelector('id')?.textContent.trim() || '';
+    const authorEls = li.querySelectorAll('.authors a');
+    const authors = Array.from(authorEls).map(a => a.textContent.trim());
 
-    const categories = Array.from(entry.querySelectorAll('category'))
-      .map(c => c.getAttribute('term'))
-      .filter(Boolean);
+    const abstractEl = li.querySelector('.abstract-full') || li.querySelector('.abstract-short');
+    const abstract = abstractEl ? abstractEl.textContent.trim().replace(/\s+/g, ' ').replace(/^▽ /, '').replace(/ △ Less$/, '').substring(0, 500) : '';
 
-    const arxivId = absLink.replace('http://arxiv.org/abs/', '');
+    const dateEl = li.querySelector('.is-size-7');
+    const dateText = dateEl?.textContent?.trim() || '';
+    const dateMatch = dateText.match(/Submitted\s+(\d{1,2}\s+\w+,?\s+\d{4})/);
+    const published = dateMatch ? dateMatch[1] : '';
 
-    return {
+    const tagEls = li.querySelectorAll('.tag');
+    const categories = Array.from(tagEls).map(t => t.textContent.trim()).filter(Boolean);
+
+    papers.push({
       id: arxivId,
-      title: getText('title').replace(/\s+/g, ' '),
-      abstract: getText('summary').replace(/\s+/g, ' ').substring(0, 500),
-      authors: authors,
-      published: getText('published').substring(0, 10),
-      categories: categories,
-      url: absLink,
-      pdf: pdfLink
-    };
+      title,
+      abstract,
+      authors,
+      published,
+      categories,
+      url: absLink.startsWith('/') ? 'https://arxiv.org' + absLink : absLink,
+      pdf: arxivId ? `https://arxiv.org/pdf/${arxivId}` : ''
+    });
   });
 
-  const totalResults = doc.querySelector('totalResults')?.textContent || '0';
+  const totalEl = doc.querySelector('.title.is-clearfix h1');
+  const totalMatch = totalEl?.textContent?.match(/of\s+([\d,]+)/);
+  const totalResults = totalMatch ? parseInt(totalMatch[1].replace(/,/g, '')) : papers.length;
 
   return {
-    query: query,
-    totalResults: parseInt(totalResults),
+    query,
+    totalResults,
     count: papers.length,
-    papers: papers
+    papers
   };
 }

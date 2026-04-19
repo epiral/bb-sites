@@ -1,7 +1,7 @@
 /* @meta
 {
   "name": "producthunt/today",
-  "description": "Product Hunt 今日热门产品",
+  "description": "Product Hunt 今日产品 (today's products: name, tagline, votes)",
   "domain": "www.producthunt.com",
   "args": {
     "count": {"required": false, "description": "Number of products to return (default: 20, max: 50)"}

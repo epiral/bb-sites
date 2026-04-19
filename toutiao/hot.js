@@ -1,7 +1,7 @@
 /* @meta
 {
   "name": "toutiao/hot",
-  "description": "今日头条热榜",
+  "description": "今日头条热榜 (Toutiao trending: title, hot_value)",
   "domain": "www.toutiao.com",
   "args": {
     "count": {"required": false, "description": "返回条数 (默认 20, 最多 50)"}
@@ -14,7 +14,7 @@
 async function(args) {
   const count = Math.min(parseInt(args.count) || 20, 50);
 
-  const resp = await fetch('https://www.toutiao.com/hot-event/hot-board/?origin=toutiao_pc', {credentials: 'include'});
+  const resp = await fetch('/hot-event/hot-board/?origin=toutiao_pc', {credentials: 'include'});
   if (!resp.ok) {
     // Fallback: parse hot search from homepage
     return await fallbackFromHomepage(count);
@@ -36,14 +36,17 @@ async function(args) {
     title: item.Title || item.title || '',
     hot_value: item.HotValue || item.hot_value || 0,
     label: item.Label || item.label || '',
-    url: item.Url || item.url || '',
-    cluster_id: item.ClusterId || item.cluster_id || ''
+    url: cleanUrl(item.Url || item.url || '')
   }));
 
   return {count: items.length, items};
 
+  function cleanUrl(url) {
+    try { return new URL(url).origin + new URL(url).pathname; } catch { return url; }
+  }
+
   async function fallbackFromHomepage(limit) {
-    const homeResp = await fetch('https://www.toutiao.com/', {credentials: 'include'});
+    const homeResp = await fetch('/', {credentials: 'include'});
     if (!homeResp.ok) return {error: 'HTTP ' + homeResp.status, hint: 'Open www.toutiao.com in bb-browser first'};
 
     const html = await homeResp.text();
@@ -71,8 +74,7 @@ async function(args) {
                 title: item.Title || item.title || '',
                 hot_value: item.HotValue || item.hot_value || 0,
                 label: item.Label || item.label || '',
-                url: item.Url || item.url || '',
-                cluster_id: item.ClusterId || item.cluster_id || ''
+                url: cleanUrl(item.Url || item.url || '')
               });
             });
             if (items.length > 0) return {count: items.length, source: 'homepage_script', items};
@@ -92,8 +94,7 @@ async function(args) {
         title,
         hot_value: 0,
         label: '',
-        url: link.getAttribute('href') || '',
-        cluster_id: ''
+        url: cleanUrl(link.getAttribute('href') || '')
       });
       if (items.length >= limit) break;
     }

@@ -1,7 +1,7 @@
 /* @meta
 {
   "name": "36kr/newsflash",
-  "description": "36氪快讯",
+  "description": "36氪快讯 (tech news flash: title, description, timestamp)",
   "domain": "36kr.com",
   "args": {
     "count": {"required": false, "description": "Number of items to return (default: 20, max: 50)"}

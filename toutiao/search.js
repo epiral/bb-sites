@@ -1,7 +1,7 @@
 /* @meta
 {
   "name": "toutiao/search",
-  "description": "今日头条搜索",
+  "description": "今日头条搜索 (Toutiao search: title, snippet, source)",
   "domain": "so.toutiao.com",
   "args": {
     "query": {"required": true, "description": "搜索关键词"},

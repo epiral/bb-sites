@@ -1,7 +1,7 @@
 /* @meta
 {
   "name": "hupu/hot",
-  "description": "虎扑步行街热帖",
+  "description": "虎扑热帖 (Hupu hot posts: title, replies, forum)",
   "domain": "bbs.hupu.com",
   "args": {},
   "readOnly": true,

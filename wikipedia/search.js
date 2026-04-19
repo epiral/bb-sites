@@ -1,7 +1,7 @@
 /* @meta
 {
   "name": "wikipedia/search",
-  "description": "搜索维基百科",
+  "description": "维基百科搜索 (Wikipedia search: title, snippet, url)",
   "domain": "en.wikipedia.org",
   "args": {
     "query": "搜索关键词",

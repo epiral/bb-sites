@@ -2,7 +2,7 @@
 {
   "name": "cnblogs/search",
   "description": "博客园技术文章搜索",
-  "domain": "zzk.cnblogs.com",
+  "domain": "zzkx.cnblogs.com",
   "args": {
     "query": {"required": true, "description": "Search query"},
     "page": {"required": false, "description": "Page number (default 1)"}
@@ -17,13 +17,17 @@ async function(args) {
   if (!query) return {error: 'query is required'};
   const page = args.page || 1;
 
-  const url = 'https://zzk.cnblogs.com/s?w=' + encodeURIComponent(query) + '&p=' + page;
+  const url = '/s?w=' + encodeURIComponent(query) + '&p=' + page;
   const resp = await fetch(url, {credentials: 'include'});
   if (!resp.ok) return {error: 'HTTP ' + resp.status};
 
   const html = await resp.text();
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
+
+  if (html.includes('请完成人机验证') || html.includes('拖动滑块完成拼图')) {
+    return {error: 'Anti-bot verification required', hint: 'Open zzkx.cnblogs.com in bb-browser and complete the slider captcha, then retry', action: 'bb-browser open https://zzkx.cnblogs.com'};
+  }
 
   const items = doc.querySelectorAll('.searchItem');
   const results = [];

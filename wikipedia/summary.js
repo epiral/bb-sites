@@ -1,7 +1,7 @@
 /* @meta
 {
   "name": "wikipedia/summary",
-  "description": "获取维基百科页面摘要",
+  "description": "维基百科摘要 (Wikipedia summary: title, extract, url)",
   "domain": "en.wikipedia.org",
   "args": {
     "title": "页面标题 (用下划线替换空格)"

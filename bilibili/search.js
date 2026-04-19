@@ -30,16 +30,12 @@ async function(args) {
     bvid: r.bvid,
     title: stripHtml(r.title),
     author: r.author,
-    author_mid: r.mid,
-    description: stripHtml(r.description).substring(0, 200),
     duration: r.duration,
     play: r.play,
     danmaku: r.danmaku,
     like: r.like,
     favorites: r.favorites,
-    cover: r.pic?.startsWith('//') ? 'https:' + r.pic : r.pic,
     pub_date: r.pubdate ? new Date(r.pubdate * 1000).toISOString() : null,
-    tags: r.tag || '',
     url: 'https://www.bilibili.com/video/' + r.bvid
   }));
   return {keyword: args.keyword, page, total: d.data?.numResults || 0, count: videos.length, videos};

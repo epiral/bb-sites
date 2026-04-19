@@ -1,7 +1,7 @@
 /* @meta
 {
   "name": "openlibrary/search",
-  "description": "Open Library 图书搜索",
+  "description": "Open Library 图书搜索 (book search: title, authors, year)",
   "domain": "openlibrary.org",
   "args": {
     "query": {"type": "string", "required": true, "description": "搜索关键词"},
