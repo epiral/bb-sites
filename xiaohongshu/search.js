@@ -335,13 +335,18 @@ async function(args) {
     return origOpen.apply(this, arguments);
   };
 
+  const searchKeyword = args.keyword;
+
   XMLHttpRequest.prototype.send = function(body) {
     if (String(this.__bbUrl || "").includes("search/notes")) {
       const request = this;
       const orig = request.onreadystatechange;
       request.onreadystatechange = function() {
         if (request.readyState === 4 && !captured) {
-          try { captured = JSON.parse(request.responseText); } catch {}
+          try {
+            const parsed = JSON.parse(request.responseText);
+            if (parsed?.data?.items) captured = parsed;
+          } catch {}
         }
         if (orig) return orig.apply(this, arguments);
       };
@@ -354,7 +359,8 @@ async function(args) {
     try {
       const url = typeof resource === "string" ? resource : resource?.url;
       if (!captured && url && String(url).includes("search/notes")) {
-        captured = await response.clone().json();
+        const parsed = await response.clone().json();
+        if (parsed?.data?.items) captured = parsed;
       }
     } catch {}
     return response;
@@ -396,7 +402,7 @@ async function(args) {
       searchStore.searchContext.keyword = args.keyword;
       searchStore.searchContext.page = 1;
       searchStore.searchContext.pageSize = searchStore.searchContext.pageSize || 20;
-      searchStore.searchContext.searchId = searchStore.searchContext.searchId || searchStore.rootSearchId || `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+      searchStore.searchContext.searchId = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
       searchStore.searchContext.sort = requestedSort;
       searchStore.searchContext.noteType = searchStore.searchContext.noteType ?? 0;
       searchStore.searchContext.extFlags = Array.isArray(searchStore.searchContext.extFlags) ? searchStore.searchContext.extFlags : [];
@@ -410,6 +416,8 @@ async function(args) {
     searchStore.activeFilters = activeFilters;
 
     searchStore.resetSearchNoteStore?.();
+    if (searchStore.feeds) searchStore.feeds = [];
+    captured = null;
     try {
       if (searchStore.searchNotes) {
         searchStore.searchNotes();
