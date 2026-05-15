@@ -15,9 +15,9 @@
 */
 
 async function(args) {
-  if (!args.query) return {error: 'Missing argument: query', hint: 'Provide a search query'};
-  const ct0 = document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('ct0='))?.split('=')[1];
-  if (!ct0) return {error: 'No ct0 cookie', hint: 'Please log in to https://x.com first.'};
+  if (!args.query) return { error: 'Missing argument: query', hint: 'Provide a search query' };
+  const ct0 = document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('ct0='))?.split('=')[1];
+  if (!ct0) return { error: 'No ct0 cookie', hint: 'Please log in to https://x.com first.' };
 
   // Access webpack module to generate x-client-transaction-id and discover queryId dynamically
   let __webpack_require__;
@@ -36,10 +36,10 @@ async function(args) {
         if (qm) queryId = qm[1];
       }
       if (genTxId && queryId) break;
-    } catch {}
+    } catch { }
   }
-  if (!genTxId) return {error: 'Cannot find transaction-id generator', hint: 'x.com webpack structure may have changed'};
-  if (!queryId) return {error: 'Cannot find SearchTimeline queryId', hint: 'x.com API structure may have changed'};
+  if (!genTxId) return { error: 'Cannot find transaction-id generator', hint: 'x.com webpack structure may have changed' };
+  if (!queryId) return { error: 'Cannot find SearchTimeline queryId', hint: 'x.com API structure may have changed' };
 
   const bearer = 'AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
   const path = '/i/api/graphql/' + queryId + '/SearchTimeline';
@@ -76,8 +76,8 @@ async function(args) {
     responsive_web_enhance_cards_enabled: false
   });
   const url = path + '?variables=' + encodeURIComponent(variables) + '&features=' + encodeURIComponent(features);
-  const resp = await fetch(url, {headers: _h, credentials: 'include'});
-  if (!resp.ok) return {error: 'HTTP ' + resp.status, hint: 'queryId may have changed'};
+  const resp = await fetch(url, { headers: _h, credentials: 'include' });
+  if (!resp.ok) return { error: 'HTTP ' + resp.status, hint: 'queryId may have changed' };
   const d = await resp.json();
 
   const instructions = d.data?.search_by_raw_query?.search_timeline?.timeline?.instructions || [];
@@ -92,13 +92,15 @@ async function(args) {
       const u = tw.core?.user_results?.result;
       const nt = tw.note_tweet?.note_tweet_results?.result?.text;
       const screenName = u?.legacy?.screen_name || u?.core?.screen_name;
-      tweets.push({id: tw.rest_id, author: screenName,
+      tweets.push({
+        id: tw.rest_id, author: screenName,
         name: u?.legacy?.name || u?.core?.name,
         url: 'https://x.com/' + (screenName || '_') + '/status/' + tw.rest_id,
         text: nt || l.full_text || '', likes: l.favorite_count, retweets: l.retweet_count,
-        in_reply_to: l.in_reply_to_status_id_str || undefined, created_at: l.created_at});
+        in_reply_to: l.in_reply_to_status_id_str || undefined, created_at: l.created_at
+      });
     }
   }
 
-  return {query: args.query, product, count: tweets.length, tweets};
+  return { query: args.query, product, count: tweets.length, tweets };
 }
