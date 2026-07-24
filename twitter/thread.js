@@ -43,9 +43,14 @@ async function(args) {
     const u = tw.core?.user_results?.result;
     const nt = tw.note_tweet?.note_tweet_results?.result?.text;
     const screenName = u?.legacy?.screen_name || u?.core?.screen_name;
+    const rawViewCount = tw.views?.count;
+    const viewCount = rawViewCount == null ? null : Number(rawViewCount);
     tweets.push({id: tw.rest_id, author: screenName, text: nt || l.full_text || '',
       url: 'https://x.com/' + (screenName || '_') + '/status/' + tw.rest_id,
-      likes: l.favorite_count, retweets: l.retweet_count, in_reply_to: l.in_reply_to_status_id_str, created_at: l.created_at});
+      likes: l.favorite_count, retweets: l.retweet_count,
+      replies: l.reply_count ?? null, bookmarks: l.bookmark_count ?? null,
+      views: Number.isFinite(viewCount) ? viewCount : null,
+      in_reply_to: l.in_reply_to_status_id_str, created_at: l.created_at});
   }
 
   for (let page = 0; page < maxPages; page++) {
