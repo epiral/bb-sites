@@ -1,16 +1,34 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import vm from "node:vm";
 
-import {
+const edgeRepoEnv = process.env.PINIX_EDGE_REPO;
+if (!edgeRepoEnv) {
+  throw new Error("Test setup error: PINIX_EDGE_REPO is required and must point to a pinix-edge checkout/worktree.");
+}
+
+const EDGE_REPO = resolve(edgeRepoEnv);
+const EDGE_SITE_ENVELOPE_PATH = join(EDGE_REPO, "main", "site-envelope.mjs");
+const EDGE_SITE_HANDLER_PATH = join(EDGE_REPO, "main", "handlers", "site.mjs");
+
+try {
+  await access(EDGE_SITE_ENVELOPE_PATH);
+  await access(EDGE_SITE_HANDLER_PATH);
+} catch {
+  throw new Error("Test setup error: PINIX_EDGE_REPO=" + EDGE_REPO + " is not a valid pinix-edge checkout; expected main/site-envelope.mjs and main/handlers/site.mjs.");
+}
+
+const {
   buildSiteResultEnvelope,
   unwrapSiteAdapterCarrier,
   SITE_RESULT_ENVELOPE_VERSION,
-} from "/private/tmp/pinix-edge-170-stage3/main/site-envelope.mjs";
-import {
+} = await import(pathToFileURL(EDGE_SITE_ENVELOPE_PATH).href);
+const {
   buildEnabledSiteIndex,
-} from "/private/tmp/pinix-edge-170-stage3/main/handlers/site.mjs";
+} = await import(pathToFileURL(EDGE_SITE_HANDLER_PATH).href);
 
 async function loadJSON(path) {
   return JSON.parse(await readFile(new URL(path, import.meta.url), "utf8"));
@@ -52,6 +70,9 @@ function plain(value) {
 }
 
 test("manifests expose Stage3 metadata for only the selected pilot commands", async () => {
+  assert.equal(EDGE_SITE_ENVELOPE_PATH.startsWith(EDGE_REPO + "/"), true);
+  assert.equal(EDGE_SITE_HANDLER_PATH.startsWith(EDGE_REPO + "/"), true);
+
   const hn = await loadJSON("../hackernews/site.json");
   const reddit = await loadJSON("../reddit/site.json");
 
