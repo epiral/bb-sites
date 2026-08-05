@@ -1,0 +1,48 @@
+{
+  "items": {
+    "200": {
+      "id": 200,
+      "type": "story",
+      "title": "Thread story",
+      "url": "https://example.com/thread",
+      "by": "submitter",
+      "score": 100,
+      "descendants": 4,
+      "time": 1700000000,
+      "kids": [201, 202, 203]
+    },
+    "201": {
+      "id": 201,
+      "type": "comment",
+      "by": "commenter",
+      "text": "Visible comment",
+      "time": 1700000100,
+      "kids": [204]
+    },
+    "202": {
+      "id": 202,
+      "type": "comment",
+      "deleted": true
+    },
+    "203": {
+      "id": 203,
+      "type": "comment",
+      "dead": true
+    },
+    "204": {
+      "id": 204,
+      "type": "comment",
+      "by": "reply",
+      "text": "Nested reply",
+      "time": 1700000200,
+      "kids": [205]
+    },
+    "205": {
+      "id": 205,
+      "type": "comment",
+      "by": "deep",
+      "text": "Depth-limited reply",
+      "time": 1700000300
+    }
+  }
+}

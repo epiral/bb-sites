@@ -1,0 +1,38 @@
+{
+  "normal": {
+    "ids": [101, 102, 103],
+    "items": {
+      "101": {
+        "id": 101,
+        "type": "story",
+        "title": "First HN story",
+        "url": "https://example.com/first",
+        "by": "alice",
+        "score": 42,
+        "descendants": 7
+      },
+      "102": {
+        "id": 102,
+        "type": "story",
+        "title": "Second HN story",
+        "url": null,
+        "by": "bob",
+        "score": 11,
+        "descendants": 0
+      },
+      "103": {
+        "id": 103,
+        "type": "story",
+        "title": "Third HN story",
+        "url": "https://example.com/third",
+        "by": "carol",
+        "score": 5,
+        "descendants": 1
+      }
+    }
+  },
+  "empty": {
+    "ids": [],
+    "items": {}
+  }
+}

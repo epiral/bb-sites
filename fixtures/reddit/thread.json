@@ -1,0 +1,88 @@
+{
+  "normal": [
+    {
+      "kind": "Listing",
+      "data": {
+        "children": [
+          {
+            "kind": "t3",
+            "data": {
+              "name": "t3_post",
+              "title": "Reddit thread",
+              "author": "poster",
+              "subreddit_name_prefixed": "r/AI_Agents",
+              "score": 55,
+              "num_comments": 4,
+              "selftext": "Post body",
+              "url": "https://example.com/post",
+              "created_utc": 1700000000
+            }
+          }
+        ]
+      }
+    },
+    {
+      "kind": "Listing",
+      "data": {
+        "children": [
+          {
+            "kind": "t1",
+            "data": {
+              "name": "t1_a",
+              "parent_id": "t3_post",
+              "author": "alice",
+              "score": 9,
+              "body": "Top-level comment",
+              "replies": {
+                "kind": "Listing",
+                "data": {
+                  "children": [
+                    {
+                      "kind": "t1",
+                      "data": {
+                        "name": "t1_b",
+                        "parent_id": "t1_a",
+                        "author": "bob",
+                        "score": 4,
+                        "body": "Nested comment",
+                        "replies": {
+                          "kind": "Listing",
+                          "data": {
+                            "children": [
+                              {
+                                "kind": "t1",
+                                "data": {
+                                  "name": "t1_c",
+                                  "parent_id": "t1_b",
+                                  "author": "carol",
+                                  "score": 1,
+                                  "body": "Depth-limited comment"
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "kind": "more",
+            "data": {
+              "children": ["t1_more_a", "t1_more_b"]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "empty": [
+    {
+      "kind": "Listing",
+      "data": {"children": []}
+    }
+  ]
+}
