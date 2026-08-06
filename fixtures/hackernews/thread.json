@@ -43,6 +43,44 @@
       "by": "deep",
       "text": "Depth-limited reply",
       "time": 1700000300
+    },
+    "210": {
+      "id": 210,
+      "type": "story",
+      "title": "Complete nested story",
+      "url": "https://example.com/complete",
+      "by": "submitter",
+      "score": 50,
+      "descendants": 2,
+      "time": 1700000400,
+      "kids": [211]
+    },
+    "211": {
+      "id": 211,
+      "type": "comment",
+      "by": "top",
+      "text": "Top-level visible",
+      "time": 1700000500,
+      "kids": [212]
+    },
+    "212": {
+      "id": 212,
+      "type": "comment",
+      "by": "nested",
+      "text": "Nested visible",
+      "time": 1700000600
+    },
+    "220": {
+      "id": 220,
+      "type": "story",
+      "deleted": true,
+      "kids": []
+    },
+    "221": {
+      "id": 221,
+      "type": "story",
+      "dead": true,
+      "kids": []
     }
   }
 }

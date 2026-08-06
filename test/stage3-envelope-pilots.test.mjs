@@ -124,13 +124,35 @@ test("hackernews top returns legacy-shaped data plus carrier metadata", async ()
   assert.equal(env.reason, "limit_truncated");
   assert.deepEqual(env.command.effective_args, { count: 2 });
   assert.equal(env.source.url, "https://hacker-news.firebaseio.com/v0/topstories.json");
-  assert.deepEqual(env.pagination, { limit: 2, returned: 2, total_available: 3, truncated: true });
+  assert.deepEqual(env.pagination, {
+    limit: 2,
+    selected: 2,
+    returned: 2,
+    total_available: 3,
+    truncated: true,
+    selected_omitted: 0,
+    fetch_missing_omitted: 0,
+    deleted_dead_omitted: 0,
+    non_story_omitted: 0,
+    missing_title_omitted: 0
+  });
   assert.deepEqual(env.auth, { requirement: "none", authenticated_as: "not_applicable" });
 });
 
-test("hackernews top covers empty and limit clamp without live fetch", async () => {
+test("hackernews top covers complete, empty and limit clamp without live fetch", async () => {
   const fixture = await loadJSON("../fixtures/hackernews/top.json");
   const manifest = await loadJSON("../hackernews/site.json");
+  const completeAdapter = await loadAdapter("hackernews/top.js", async (url) => {
+    if (url.endsWith("/topstories.json")) return response(fixture.normal.ids);
+    const id = url.match(/item\/(\d+)\.json/)?.[1];
+    return response(fixture.normal.items[id] || null);
+  });
+  const complete = envelopeFor("hackernews", "top", manifest, await completeAdapter({ count: "3" }), { count: "3" });
+  assert.equal(complete.completeness, "complete");
+  assert.equal(complete.reason, "complete");
+  assert.equal(complete.pagination.returned, 3);
+  assert.equal(complete.pagination.selected_omitted, 0);
+
   const emptyAdapter = await loadAdapter("hackernews/top.js", async () => response(fixture.empty.ids));
   const empty = envelopeFor("hackernews", "top", manifest, await emptyAdapter({ count: "5" }), { count: "5" });
   assert.equal(empty.completeness, "empty");
@@ -146,6 +168,28 @@ test("hackernews top covers empty and limit clamp without live fetch", async () 
   assert.equal(env.command.effective_args.count, 50);
   assert.equal(env.pagination.returned, 50);
   assert.equal(env.pagination.truncated, true);
+});
+
+test("hackernews top reports selected fetch/filter omissions as partial", async () => {
+  const fixture = await loadJSON("../fixtures/hackernews/top.json");
+  const manifest = await loadJSON("../hackernews/site.json");
+  const adapter = await loadAdapter("hackernews/top.js", async (url) => {
+    if (url.endsWith("/topstories.json")) return response(fixture.selected_omissions.ids);
+    const id = url.match(/item\/(\d+)\.json/)?.[1];
+    return response(fixture.selected_omissions.items[id] || null);
+  });
+  const env = envelopeFor("hackernews", "top", manifest, await adapter({ count: "5" }), { count: "5" });
+  assert.equal(env.completeness, "partial");
+  assert.equal(env.reason, "selected_items_omitted");
+  assert.equal(env.data.count, 1);
+  assert.equal(env.pagination.returned, 1);
+  assert.equal(env.pagination.selected, 5);
+  assert.equal(env.pagination.selected_omitted, 4);
+  assert.equal(env.pagination.fetch_missing_omitted, 1);
+  assert.equal(env.pagination.deleted_dead_omitted, 2);
+  assert.equal(env.pagination.non_story_omitted, 1);
+  assert.equal(env.pagination.missing_title_omitted, 0);
+  assert.equal(env.warnings.some((warning) => warning.code === "SELECTED_ITEMS_OMITTED"), true);
 });
 
 test("hackernews top covers invalid and network paths without live fetch", async () => {
@@ -166,19 +210,65 @@ test("hackernews thread omits deleted/dead and reports proven partial depth trun
     const id = url.match(/item\/(\d+)\.json/)?.[1];
     return response(fixture.items[id] || null);
   });
-  const result = await adapter({ id: "https://news.ycombinator.com/item?id=200", depth: "0" });
+  const threadArgs = { id: "https://news.ycombinator.com/item?id=200&token=fake#frag", depth: "0" };
+  const result = await adapter(threadArgs);
   const legacy = unwrapSiteAdapterCarrier(result, manifest.commands.thread);
   assert.equal(legacy.post.id, 200);
   assert.equal(legacy.comments.length, 1);
   assert.equal(legacy.comments[0].id, 201);
   assert.deepEqual(plain(legacy.comments[0].replies), []);
 
-  const env = envelopeFor("hackernews", "thread", manifest, result, { id: "https://news.ycombinator.com/item?id=200", depth: "0" });
+  const env = envelopeFor("hackernews", "thread", manifest, result, threadArgs);
   assert.equal(env.completeness, "partial");
   assert.equal(env.reason, "comments_omitted");
+  assert.deepEqual(plain(env.command.requested_args), { id: "https://news.ycombinator.com/item?id=200", depth: "0" });
   assert.deepEqual(env.command.effective_args, { id: "200", depth: 0 });
   assert.equal(env.pagination.deleted_dead_omitted, 2);
   assert.equal(env.pagination.depth_truncated, 1);
+  assert.equal(env.pagination.comments_returned, 1);
+  assert.equal(env.pagination.top_level_comments_returned, 1);
+});
+
+test("hackernews thread counts nested comments recursively", async () => {
+  const fixture = await loadJSON("../fixtures/hackernews/thread.json");
+  const manifest = await loadJSON("../hackernews/site.json");
+  const adapter = await loadAdapter("hackernews/thread.js", async (url) => {
+    const id = url.match(/item\/(\d+)\.json/)?.[1];
+    return response(fixture.items[id] || null);
+  });
+  const env = envelopeFor("hackernews", "thread", manifest, await adapter({ id: "210", depth: "2" }), { id: "210", depth: "2" });
+  assert.equal(env.completeness, "complete");
+  assert.equal(env.pagination.comments_returned, 2);
+  assert.equal(env.pagination.top_level_comments_returned, 1);
+});
+
+test("hackernews thread reports deleted/dead root as non-complete metadata without changing legacy data", async () => {
+  const fixture = await loadJSON("../fixtures/hackernews/thread.json");
+  const manifest = await loadJSON("../hackernews/site.json");
+  const adapter = await loadAdapter("hackernews/thread.js", async (url) => {
+    const id = url.match(/item\/(\d+)\.json/)?.[1];
+    return response(fixture.items[id] || null);
+  });
+
+  const deletedResult = await adapter({ id: "220" });
+  const deletedLegacy = unwrapSiteAdapterCarrier(deletedResult, manifest.commands.thread);
+  const deletedEnv = envelopeFor("hackernews", "thread", manifest, deletedResult, { id: "220" });
+  assert.deepEqual(plain(deletedLegacy), plain(deletedResult.data));
+  assert.equal(deletedEnv.completeness, "partial");
+  assert.equal(deletedEnv.reason, "root_unavailable");
+  assert.equal(deletedEnv.pagination.root_deleted, 1);
+  assert.equal(deletedEnv.pagination.root_dead, 0);
+  assert.equal(deletedEnv.pagination.comments_returned, 0);
+  assert.equal(deletedEnv.warnings.some((warning) => warning.code === "ROOT_UNAVAILABLE"), true);
+
+  const deadResult = await adapter({ id: "221" });
+  const deadEnv = envelopeFor("hackernews", "thread", manifest, deadResult, { id: "221" });
+  assert.equal(deadEnv.completeness, "partial");
+  assert.equal(deadEnv.reason, "root_unavailable");
+  assert.equal(deadEnv.pagination.root_deleted, 0);
+  assert.equal(deadEnv.pagination.root_dead, 1);
+  assert.equal(deadEnv.pagination.comments_returned, 0);
+  assert.equal(deadEnv.warnings.some((warning) => warning.code === "ROOT_UNAVAILABLE"), true);
 });
 
 test("hackernews thread covers invalid and network paths", async () => {

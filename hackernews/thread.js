@@ -40,6 +40,7 @@ async function(args) {
   if (!resp.ok) return {error: 'HTTP ' + resp.status};
   const item = await resp.json();
   if (!item) return {error: 'Item not found', hint: 'Check the ID: ' + itemId};
+  const rootUnavailable = !!(item.deleted || item.dead);
 
   // Fetch comment tree with bounded depth and fanout for performance.
   async function fetchComments(ids, depth) {
@@ -65,11 +66,16 @@ async function(args) {
   }
 
   const comments = await fetchComments(item.kids, 0);
+  function countComments(nodes) {
+    return nodes.reduce((total, node) => total + 1 + countComments(node.replies || []), 0);
+  }
+  const commentsReturned = countComments(comments);
   const data = {
     post: {id: item.id, title: item.title, url: item.url || null, hn_url: 'https://news.ycombinator.com/item?id=' + item.id, author: item.by, score: item.score, comments_count: item.descendants || 0, time: item.time, text: item.text},
     comments
   };
-  const partial = stats.deleted_dead > 0 || stats.depth_truncated > 0 || stats.child_limit_truncated > 0;
+  const partial = rootUnavailable || stats.deleted_dead > 0 || stats.depth_truncated > 0 || stats.child_limit_truncated > 0;
+  const reason = rootUnavailable ? 'root_unavailable' : (partial ? 'comments_omitted' : 'complete');
 
   return {
     __pinix_site_result: {
@@ -77,17 +83,22 @@ async function(args) {
       metadata: {
         effective_args: {id: String(itemId), depth: depthLimit},
         completeness: partial ? 'partial' : 'complete',
-        reason: partial ? 'comments_omitted' : 'complete',
+        reason,
         source: {url: itemUrl},
         pagination: {
           depth: depthLimit,
-          comments_returned: comments.length,
+          comments_returned: commentsReturned,
+          top_level_comments_returned: comments.length,
+          root_deleted: item.deleted ? 1 : 0,
+          root_dead: item.dead ? 1 : 0,
           deleted_dead_omitted: stats.deleted_dead,
           depth_truncated: stats.depth_truncated,
           child_limit_truncated: stats.child_limit_truncated
         },
         auth: {authenticated_as: 'not_applicable'},
-        warnings: partial ? [{code: 'PARTIAL_COMMENTS', message: 'Some comments were omitted because they were deleted/dead or beyond adapter depth/fanout limits.'}] : undefined
+        warnings: rootUnavailable
+          ? [{code: 'ROOT_UNAVAILABLE', message: 'The root HN item is deleted or dead; legacy data is preserved but completeness is partial.'}]
+          : (partial ? [{code: 'PARTIAL_COMMENTS', message: 'Some comments were omitted because they were deleted/dead or beyond adapter depth/fanout limits.'}] : undefined)
       }
     },
     data

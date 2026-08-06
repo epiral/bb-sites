@@ -34,5 +34,34 @@
   "empty": {
     "ids": [],
     "items": {}
+  },
+  "selected_omissions": {
+    "ids": [301, 302, 303, 304, 305],
+    "items": {
+      "301": {
+        "id": 301,
+        "type": "story",
+        "title": "Only valid selected story",
+        "url": "https://example.com/valid",
+        "by": "valid",
+        "score": 9,
+        "descendants": 2
+      },
+      "302": {
+        "id": 302,
+        "type": "story",
+        "deleted": true
+      },
+      "303": {
+        "id": 303,
+        "type": "story",
+        "dead": true
+      },
+      "304": {
+        "id": 304,
+        "type": "comment",
+        "text": "Not a story"
+      }
+    }
   }
 }
