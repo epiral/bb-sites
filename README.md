@@ -6,7 +6,7 @@ Each site adapter is a JS function that runs inside your browser via `bb-browser
 
 [English](README.md) · [中文](README.zh-CN.md)
 
-> **102 adapters** across **36 platforms** — and growing.
+> **128 adapters** across **49 platforms** — and growing.
 
 ## Quick Start
 
@@ -53,6 +53,7 @@ bb-browser site reddit/thread <url>        # run with args
 | Platform | Commands | Description |
 |----------|----------|-------------|
 | GitHub | `github/me`, `github/repo`, `github/issues`, `github/issue-create`, `github/pr-create`, `github/fork` | User info, repos, issues, PRs, forks |
+| ChatGPT | `chatgpt/deep-research`, `chatgpt/create-image` | Deep research reports and image generation downloads |
 | Hacker News | `hackernews/top`, `hackernews/thread` | Top stories, post + comment tree |
 | Stack Overflow | `stackoverflow/search` | Search questions |
 | CSDN | `csdn/search` | CSDN tech article search |
@@ -133,6 +134,7 @@ bb-browser site reddit/thread https://reddit.com/r/programming/comments/...
 bb-browser site weibo/hot
 
 # Tech research
+bb-browser site chatgpt/deep-research --prompt "Research the 2025 US CPI trend" --downloadPath ./report.md
 bb-browser site github/repo epiral/bb-browser
 bb-browser site hackernews/top 10
 bb-browser site stackoverflow/search "python async await"

@@ -6,7 +6,7 @@
 
 [English](README.md) · [中文](README.zh-CN.md)
 
-> **102 个适配器**，覆盖 **36 个平台** — 持续增长中。
+> **128 个适配器**，覆盖 **49 个平台** — 持续增长中。
 
 ## 快速开始
 
@@ -53,6 +53,7 @@ bb-browser site reddit/thread <url>        # 带参数运行
 | 平台 | 命令 | 说明 |
 |------|------|------|
 | GitHub | `github/me`, `github/repo`, `github/issues`, `github/issue-create`, `github/pr-create`, `github/fork` | 用户信息、仓库、Issue、PR、Fork |
+| ChatGPT | `chatgpt/deep-research`, `chatgpt/create-image` | 深度研究报告、图片生成下载 |
 | Hacker News | `hackernews/top`, `hackernews/thread` | 热门文章、帖子 + 评论树 |
 | Stack Overflow | `stackoverflow/search` | 搜索问答 |
 | CSDN | `csdn/search` | CSDN 技术文章搜索 |
@@ -133,6 +134,7 @@ bb-browser site reddit/thread https://reddit.com/r/programming/comments/...
 bb-browser site weibo/hot
 
 # 技术调研
+bb-browser site chatgpt/deep-research --prompt "调研 2025 年美国 CPI 走势" --downloadPath ./report.md
 bb-browser site github/repo epiral/bb-browser
 bb-browser site hackernews/top 10
 bb-browser site stackoverflow/search "python async await"
