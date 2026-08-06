@@ -1,8 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { access, readFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { access, mkdir, mkdtemp, readFile, symlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import vm from "node:vm";
 
 const edgeRepoEnv = process.env.PINIX_EDGE_REPO;
@@ -67,6 +68,79 @@ function envelopeFor(siteName, commandName, manifest, result, args = {}) {
 
 function plain(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+const TEST_DIR = dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = resolve(TEST_DIR, "..");
+
+function createFakeDebugger(fetchImpl) {
+  let attached = false;
+  const context = vm.createContext({ fetch: fetchImpl, console, URL, globalThis: {} });
+  return {
+    isAttached: () => attached,
+    attach: () => { attached = true; },
+    detach: () => { attached = false; },
+    async sendCommand(method, params) {
+      if (method !== "Runtime.evaluate") throw new Error("Unexpected CDP method: " + method);
+      try {
+        const value = await vm.runInContext(params.expression, context, { timeout: 60000 });
+        return { result: { value } };
+      } catch (error) {
+        return {
+          exceptionDetails: {
+            text: error.message,
+            exception: { description: error.stack || error.message }
+          }
+        };
+      }
+    }
+  };
+}
+
+async function createActualHandler(fetchImpl) {
+  const home = await mkdtemp(join(tmpdir(), "bb-sites-stage3-actual-"));
+  await mkdir(join(home, ".pinix", "sites", "pinix"), { recursive: true });
+  await symlink(join(REPO_ROOT, "hackernews"), join(home, ".pinix", "sites", "pinix", "hackernews"), "dir");
+
+  const previousHome = process.env.HOME;
+  process.env.HOME = home;
+  let createSiteHandler;
+  try {
+    const handlerModuleURL = pathToFileURL(EDGE_SITE_HANDLER_PATH);
+    handlerModuleURL.search = "actual=" + Date.now() + "-" + Math.random();
+    ({ createSiteHandler } = await import(handlerModuleURL.href));
+  } finally {
+    process.env.HOME = previousHome;
+  }
+
+  const fakeDebugger = createFakeDebugger(fetchImpl);
+  const tab = {
+    id: "tab-actual-hn",
+    profile: "default",
+    view: { webContents: { debugger: fakeDebugger } }
+  };
+  return createSiteHandler({
+    syncOnExec: false,
+    tabManager: {
+      requireProfile(profile) {
+        if (!profile) throw new Error("actual handler test expected explicit profile");
+        return profile;
+      },
+      resolveTarget() {
+        return { tab };
+      },
+      async withCommandAttach(_tabId, _opts, fn) {
+        return await fn();
+      }
+    }
+  });
+}
+
+function hnThreadFetch(fixture) {
+  return async (url) => {
+    const id = url.match(/item\/(.+?)\.json/)?.[1];
+    return response(fixture.items[id] || null);
+  };
 }
 
 test("manifests expose Stage3 metadata for only the selected pilot commands", async () => {
@@ -206,10 +280,7 @@ test("hackernews top covers invalid and network paths without live fetch", async
 test("hackernews thread omits deleted/dead and reports proven partial depth truncation", async () => {
   const fixture = await loadJSON("../fixtures/hackernews/thread.json");
   const manifest = await loadJSON("../hackernews/site.json");
-  const adapter = await loadAdapter("hackernews/thread.js", async (url) => {
-    const id = url.match(/item\/(\d+)\.json/)?.[1];
-    return response(fixture.items[id] || null);
-  });
+  const adapter = await loadAdapter("hackernews/thread.js", hnThreadFetch(fixture));
   const threadArgs = { id: "https://news.ycombinator.com/item?id=200&token=fake#frag", depth: "0" };
   const result = await adapter(threadArgs);
   const legacy = unwrapSiteAdapterCarrier(result, manifest.commands.thread);
@@ -229,13 +300,59 @@ test("hackernews thread omits deleted/dead and reports proven partial depth trun
   assert.equal(env.pagination.top_level_comments_returned, 1);
 });
 
+test("hackernews thread actual Edge handler accepts numeric token ids", async () => {
+  const fixture = await loadJSON("../fixtures/hackernews/thread.json");
+  const handler = await createActualHandler(hnThreadFetch(fixture));
+
+  const defaultResult = await handler.exec({ command: "hackernews thread --id 200 --depth 0", profile: "default" }, {});
+  assert.equal(defaultResult.__pinix_site_result, undefined);
+  assert.equal(defaultResult.post.id, 200);
+  assert.equal(defaultResult.comments.length, 1);
+
+  const env = await handler.exec({ command: "hackernews thread --id 200 --depth 0 --envelope v1", profile: "default" }, {});
+  assert.equal(env.status, "ok");
+  assert.equal(env.data.post.id, 200);
+  assert.deepEqual(plain(env.command.requested_args), { id: 200, depth: 0 });
+  assert.deepEqual(plain(env.command.effective_args), { id: "200", depth: 0 });
+});
+
+test("hackernews thread actual Edge handler accepts string numeric and URL ids", async () => {
+  const fixture = await loadJSON("../fixtures/hackernews/thread.json");
+  const handler = await createActualHandler(hnThreadFetch(fixture));
+
+  const stringNumeric = await handler.exec({ command: "hackernews thread --id 1234567890123456 --depth 1 --envelope v1", profile: "default" }, {});
+  assert.equal(stringNumeric.status, "ok");
+  assert.deepEqual(plain(stringNumeric.command.requested_args), { id: "1234567890123456", depth: 1 });
+  assert.deepEqual(plain(stringNumeric.command.effective_args), { id: "1234567890123456", depth: 1 });
+
+  const urlId = await handler.exec({ command: "hackernews thread --id \"https://news.ycombinator.com/item?id=200&token=fake#frag\" --depth 0 --envelope v1", profile: "default" }, {});
+  assert.equal(urlId.status, "ok");
+  assert.deepEqual(plain(urlId.command.requested_args), { id: "https://news.ycombinator.com/item?id=200", depth: 0 });
+  assert.deepEqual(plain(urlId.command.effective_args), { id: "200", depth: 0 });
+});
+
+test("hackernews thread actual Edge handler preserves missing null and invalid semantics", async () => {
+  const fixture = await loadJSON("../fixtures/hackernews/thread.json");
+  const handler = await createActualHandler(hnThreadFetch(fixture));
+
+  assert.deepEqual(plain(await handler.exec({ command: "hackernews thread --depth 1", profile: "default" }, {})), {
+    error: "Missing argument: id",
+    hint: "Provide an HN item ID or item URL"
+  });
+  assert.deepEqual(plain(await handler.exec({ command: "hackernews thread --id null --depth 1", profile: "default" }, {})), {
+    error: "Missing argument: id",
+    hint: "Provide an HN item ID or item URL"
+  });
+  assert.deepEqual(plain(await handler.exec({ command: "hackernews thread --id 999 --depth 1", profile: "default" }, {})), {
+    error: "Item not found",
+    hint: "Check the ID: 999"
+  });
+});
+
 test("hackernews thread counts nested comments recursively", async () => {
   const fixture = await loadJSON("../fixtures/hackernews/thread.json");
   const manifest = await loadJSON("../hackernews/site.json");
-  const adapter = await loadAdapter("hackernews/thread.js", async (url) => {
-    const id = url.match(/item\/(\d+)\.json/)?.[1];
-    return response(fixture.items[id] || null);
-  });
+  const adapter = await loadAdapter("hackernews/thread.js", hnThreadFetch(fixture));
   const env = envelopeFor("hackernews", "thread", manifest, await adapter({ id: "210", depth: "2" }), { id: "210", depth: "2" });
   assert.equal(env.completeness, "complete");
   assert.equal(env.pagination.comments_returned, 2);
@@ -245,10 +362,7 @@ test("hackernews thread counts nested comments recursively", async () => {
 test("hackernews thread reports deleted/dead root as non-complete metadata without changing legacy data", async () => {
   const fixture = await loadJSON("../fixtures/hackernews/thread.json");
   const manifest = await loadJSON("../hackernews/site.json");
-  const adapter = await loadAdapter("hackernews/thread.js", async (url) => {
-    const id = url.match(/item\/(\d+)\.json/)?.[1];
-    return response(fixture.items[id] || null);
-  });
+  const adapter = await loadAdapter("hackernews/thread.js", hnThreadFetch(fixture));
 
   const deletedResult = await adapter({ id: "220" });
   const deletedLegacy = unwrapSiteAdapterCarrier(deletedResult, manifest.commands.thread);

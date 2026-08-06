@@ -27,8 +27,8 @@
 */
 
 async function(args) {
-  if (!args.id) return {error: 'Missing argument: id', hint: 'Provide an HN item ID or item URL'};
-  let itemId = args.id;
+  if (args.id === undefined || args.id === null || args.id === '') return {error: 'Missing argument: id', hint: 'Provide an HN item ID or item URL'};
+  let itemId = String(args.id);
   const urlMatch = itemId.match(/id=(\d+)/);
   if (urlMatch) itemId = urlMatch[1];
   const parsedDepth = parseInt(args.depth);

@@ -81,6 +81,17 @@
       "type": "story",
       "dead": true,
       "kids": []
+    },
+    "1234567890123456": {
+      "id": 1234567890123456,
+      "type": "story",
+      "title": "Long numeric string story",
+      "url": "https://example.com/long-id",
+      "by": "longid",
+      "score": 1,
+      "descendants": 0,
+      "time": 1700000700,
+      "kids": []
     }
   }
 }
