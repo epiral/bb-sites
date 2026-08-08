@@ -27,7 +27,8 @@ async function(args) {
     verified_phone_label_enabled: false, responsive_web_graphql_skip_user_profile_image_extensions_enabled: false,
     responsive_web_graphql_timeline_navigation_enabled: true
   });
-  const userQueryId = findGraphQLQueryId('UserByScreenName', 'pLsOiyHJ1eFwPJlNmLp4Bg');
+  const _findQueryId = typeof findGraphQLQueryId === 'function' ? findGraphQLQueryId : ((name, fallback) => fallback);
+  const userQueryId = _findQueryId('UserByScreenName', 'pLsOiyHJ1eFwPJlNmLp4Bg');
   const uUrl = '/i/api/graphql/' + userQueryId + '/UserByScreenName?variables=' + encodeURIComponent(uVars) + '&features=' + encodeURIComponent(uFeats);
   const uResp = await fetch(uUrl, {headers: _h, credentials: 'include'});
   if (!uResp.ok) return {error: 'Failed to resolve user: HTTP ' + uResp.status};
@@ -59,7 +60,7 @@ async function(args) {
     responsive_web_enhance_cards_enabled: false
   });
   const fieldToggles = JSON.stringify({withArticlePlainText: false});
-  const tweetsQueryId = findGraphQLQueryId('UserTweets', 'Y59DTUMfcKmUAATiT2SlTw');
+  const tweetsQueryId = _findQueryId('UserTweets', 'Y59DTUMfcKmUAATiT2SlTw');
   const url = '/i/api/graphql/' + tweetsQueryId + '/UserTweets?variables=' + encodeURIComponent(variables) + '&features=' + encodeURIComponent(features) + '&fieldToggles=' + encodeURIComponent(fieldToggles);
   const resp = await fetch(url, {headers: _h, credentials: 'include'});
   if (!resp.ok) return {error: 'HTTP ' + resp.status, hint: 'queryId may have changed'};
