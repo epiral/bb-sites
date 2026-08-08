@@ -1,7 +1,7 @@
 /* @meta
 {
   "name": "xiaohongshu/note",
-  "description": "Get Xiaohongshu note details",
+  "description": "Get Xiaohongshu note details (includes video download URLs for video notes)",
   "domain": "www.xiaohongshu.com",
   "args": {
     "note_id": {"required": true, "description": "Note ID or full note URL"}
@@ -173,6 +173,56 @@ async function(args) {
         url: parsed.noteId && xsecToken ? buildNoteUrl(parsed.noteId, xsecToken) : null
       };
     }
+    function extractVideoInfo(note) {
+      if (!note || note.type !== "video") return null;
+      const video = note.video;
+      if (!video) return null;
+      const stream = video.media?.stream;
+      if (!stream) return null;
+      const formats = [];
+      if (Array.isArray(stream.h264)) {
+        for (const s of stream.h264) {
+          if (s.masterUrl) {
+            formats.push({
+              quality: s.quality || "h264",
+              resolution: s.video?.width && s.video?.height ? `${s.video.width}x${s.video.height}` : null,
+              url: s.masterUrl,
+              size: s.size || null,
+              duration: s.video?.duration || video.capa?.duration || null
+            });
+          }
+        }
+      }
+      if (Array.isArray(stream.h265)) {
+        for (const s of stream.h265) {
+          if (s.masterUrl) {
+            formats.push({
+              quality: s.quality || "h265",
+              resolution: s.video?.width && s.video?.height ? `${s.video.width}x${s.video.height}` : null,
+              url: s.masterUrl,
+              size: s.size || null,
+              duration: s.video?.duration || video.capa?.duration || null
+            });
+          }
+        }
+      }
+      if (formats.length === 0 && video.url) {
+        formats.push({
+          quality: "default",
+          url: video.url,
+          resolution: null,
+          size: null,
+          duration: video.capa?.duration || null
+        });
+      }
+      return {
+        has_video: true,
+        duration: video.capa?.duration || null,
+        width: video.capa?.width || null,
+        height: video.capa?.height || null,
+        formats: formats
+      };
+    }
     async function navigate(path, query, waitMs = 1500) {
       const router = getRouter();
       if (!router) throw new Error("Router not found");
@@ -219,7 +269,8 @@ async function(args) {
       buildNoteUrl,
       rememberNoteTokens,
       resolveNoteIdentity,
-      openNoteAndWait
+      openNoteAndWait,
+      extractVideoInfo
     };
   })());
 
@@ -256,6 +307,10 @@ async function(args) {
 
   const token = note.xsecToken ?? resolved.xsecToken;
   helper.rememberNoteTokens([{ id: resolved.noteId, xsecToken: token, noteCard: { noteId: resolved.noteId } }]);
+
+  // Extract video info if this is a video note
+  const video = helper.extractVideoInfo(note);
+
   return {
     note_id: resolved.noteId,
     xsec_token: token,
@@ -275,6 +330,7 @@ async function(args) {
       : [],
     created_time: note.time ?? null,
     last_update_time: note.lastUpdateTime ?? null,
-    ip_location: note.ipLocation ?? null
+    ip_location: note.ipLocation ?? null,
+    video: video
   };
 }
