@@ -6,7 +6,7 @@ Each site adapter is a JS function that runs inside your browser via `bb-browser
 
 [English](README.md) · [中文](README.zh-CN.md)
 
-> **102 adapters** across **36 platforms** — and growing.
+> **104 adapters** across **37 platforms** — and growing.
 
 ## Quick Start
 
@@ -118,6 +118,12 @@ bb-browser site reddit/thread <url>        # run with args
 | Xiaohongshu | `xiaohongshu/me`, `xiaohongshu/feed`, `xiaohongshu/search`, `xiaohongshu/note`, `xiaohongshu/comments`, `xiaohongshu/user_posts` | Profile, feed, search, note details, comments, and user posts |
 
 > Xiaohongshu adapters now use a mix of current Pinia store state, in-page routing, and SSR state parsing. This avoids relying on stale XHR paths that no longer fire consistently on the live site.
+
+### 🛒 Shopping & E-commerce
+
+| Platform | Commands | Description |
+|----------|----------|-------------|
+| JD.com | `jd/search`, `jd/product-detail` | 京东 — product search & details |
 
 ## Usage Examples
 
@@ -241,6 +247,7 @@ Put private adapters in `~/.bb-browser/sites/`. They override community adapters
     ├── weibo/
     ├── douban/
     ├── xiaohongshu/
+    ├── jd/
     ├── google/
     ├── ...          # 35 platform directories
     └── qidian/

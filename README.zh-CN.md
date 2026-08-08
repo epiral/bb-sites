@@ -6,7 +6,7 @@
 
 [English](README.md) · [中文](README.zh-CN.md)
 
-> **102 个适配器**，覆盖 **36 个平台** — 持续增长中。
+> **104 个适配器**，覆盖 **37 个平台** — 持续增长中。
 
 ## 快速开始
 
@@ -119,6 +119,12 @@ bb-browser site reddit/thread <url>        # 带参数运行
 
 > 所有小红书适配器使用 **Pinia Store Actions** — 调用页面自己的 Vue store 函数，走完整的签名 + 拦截器链路。零逆向。
 
+### 🛒 购物电商
+
+| 平台 | 命令 | 说明 |
+|------|------|------|
+| 京东 | `jd/search`, `jd/product-detail` | 京东商品搜索 & 详情 |
+
 ## 使用示例
 
 ```bash
@@ -220,6 +226,7 @@ bb-browser site github/pr-create epiral/bb-sites --title "feat(mysite): 添加�
     ├── weibo/
     ├── douban/
     ├── xiaohongshu/
+    ├── jd/
     ├── google/
     ├── ...          # 35 个平台目录
     └── qidian/
