@@ -2,7 +2,8 @@
 {
   "name": "hackernews/top",
   "description": "获取 Hacker News 当前热门帖子",
-  "domain": "news.ycombinator.com",
+  "domain": "hacker-news.firebaseio.com",
+  "startPath": "/v0/topstories.json",
   "args": {
     "count": {"required": false, "description": "Number of posts (default: 20, max: 50)"}
   },

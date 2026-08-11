@@ -2,7 +2,8 @@
 {
   "name": "hackernews/thread",
   "description": "获取 Hacker News 帖子的评论树",
-  "domain": "news.ycombinator.com",
+  "domain": "hacker-news.firebaseio.com",
+  "startPath": "/v0/topstories.json",
   "args": {
     "id": {"required": true, "description": "HN item ID or URL"},
     "depth": {"required": false, "description": "Comment tree depth (default: 2, max: 5)"}

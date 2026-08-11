@@ -30,7 +30,12 @@ Site adapter 在浏览器 tab 里通过 `eval` 执行。你的代码运行在别
 
 **绝对 URL 是最常见的 adapter 故障根因。** 不是代码逻辑错了，是身份搞错了。fetch 一个完整 URL 意味着你在告诉浏览器："我要以 google.com 的身份去访问 bing.com" —— 浏览器不会允许。
 
-推论：**永远用相对路径**，除非目标 API 明确开放了 CORS（`Access-Control-Allow-Origin: *`）。
+推论：**永远用相对路径**。如果数据 API 在另一个 origin，把 `domain`
+改成 API host；Tap 会在请求发出前拒绝跨域 fetch，不能靠 CORS 放行。
+
+推论：**根路径不一定是执行入口**。如果 `https://{domain}/` 会重定向到
+别的 origin，用 `startPath` 指向同域稳定页面，例如 Firebase adapter 使用
+`"startPath": "/v0/topstories.json"`。
 
 推论：**域名重定向是隐形杀手**。`zzk.cnblogs.com` 静默重定向到 `zzkx.cnblogs.com`，你的 domain 配置瞬间失效。在浏览器里实际打开 URL，看最终落在哪个域名。
 
@@ -264,7 +269,8 @@ Agent 先看 `error` 判断能否自动处理，再看 `action` 尝试修复，�
 写完一个 adapter 后，过一遍：
 
 - [ ] `@meta.domain` 是浏览器实际落地的域名（打开 URL 确认，注意重定向和子域名）
-- [ ] 所有 fetch 用相对路径（除非目标有 CORS 头）
+- [ ] 所有 fetch 与 `@meta.domain` 完全同源
+- [ ] 根路径会跨域重定向时配置同源 `startPath`
 - [ ] SSR 站点 → DOM 解析，CSR 站点 → API/JS 函数
 - [ ] 有反爬检测逻辑，返回 error + hint + action
 - [ ] 搜索结果精简（无大图 URL、无全文、无冗余字段、无 tracking 参数）

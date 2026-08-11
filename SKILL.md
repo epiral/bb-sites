@@ -103,6 +103,9 @@ async function(args) {
 }
 ```
 
+`domain` 必须是实际执行和 `fetch()` 的 HTTPS host；不要跨域请求。若根路径
+会跳到其他 origin，增加同域 `startPath` 作为稳定执行入口。
+
 **判断标准**: 用 `bb-browser eval "fetch('/api/xxx', {credentials:'include'}).then(r=>r.json())"` 能直接拿到数据。
 
 ### Tier 2: `eval` + 手动 header

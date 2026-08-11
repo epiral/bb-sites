@@ -25,6 +25,10 @@ async function(args) {
 }
 ```
 
+`domain` is the exact HTTPS execution and `fetch()` origin. Keep requests on
+that origin. If the domain root redirects elsewhere, add a same-origin
+`"startPath": "/stable/path"` to establish the browser context.
+
 ### Tier Guide
 
 | Tier | Auth | Example | Time |
