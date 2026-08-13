@@ -61,7 +61,7 @@ const manifest = JSON.parse(await readFile(join(REPO_ROOT, "wellcee", "site.json
 
 test("Wellcee manifest declares only read-only search/detail with envelope v1", () => {
   assert.deepEqual(Object.keys(manifest.commands).sort(), ["detail", "search"]);
-  assert.ok(manifest.commands.detail.params["listing-id"]);
+  assert.ok(manifest.commands.detail.params.listing_id);
   for (const command of Object.values(manifest.commands)) {
     assert.equal(command.auth, "none");
     assert.equal(command.profile, "required");

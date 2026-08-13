@@ -2,7 +2,7 @@
   "name": "wellcee",
   "description": "Wellcee 唯心所寓公开房源只读检索与详情 (rental listings: price, area, room type, amenities, source)",
   "domain": "www.wellcee.com",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "commands": {
     "search": {
       "description": "读取 Wellcee 城市公开房源首屏并做本地筛选；不代表全量市场",
@@ -76,7 +76,7 @@
       "timeout_class": "standard",
       "envelope_versions": ["pinix.site-result-envelope.v1"],
       "params": {
-        "listing-id": {
+        "listing_id": {
           "type": "string",
           "required": false,
           "description": "Wellcee 数字房源 ID；与 url 二选一"
