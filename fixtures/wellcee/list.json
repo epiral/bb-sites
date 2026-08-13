@@ -1,0 +1,62 @@
+{
+  "normal": {
+    "readyState": "complete",
+    "title": "上海租房信息|上海出租房源|上海房屋出租价格【上海Wellcee唯心所寓】",
+    "url": "https://www.wellcee.com/cn/rent-apartment/shanghai/list",
+    "bodyText": "上海租房\n1\n2\n3\n4\n987",
+    "hasEmptyState": false,
+    "hasBlockState": false,
+    "items": [
+      {
+        "position": 1,
+        "url": "https://www.wellcee.com/cn/rent-apartment/shanghai/1001",
+        "name": "徐汇 漕溪小区",
+        "datePosted": "2026-08-13",
+        "offers": {"price": "7800", "priceCurrency": "CNY", "availability": "https://schema.org/InStock"},
+        "address": {"addressLocality": "上海", "addressRegion": "徐汇", "streetAddress": "漕溪小区"},
+        "card_text": "房东A 中文 最后登录 2026-08-13 12 7800 RMB/月 徐汇 漕溪小区 房东直租 一室一厅 近地铁"
+      },
+      {
+        "position": 2,
+        "url": "https://www.wellcee.com/cn/rent-apartment/shanghai/1002?lang=zh",
+        "name": "静安 安宁小区",
+        "datePosted": "2026-08-12",
+        "offers": {"price": "5200", "priceCurrency": "RMB", "availability": "https://schema.org/InStock"},
+        "address": {"addressLocality": "上海", "addressRegion": "静安", "streetAddress": "安宁小区"},
+        "card_text": "租客B 中文 最后登录 2026-08-12 3 5200 RMB/月 静安 安宁小区 合租 近地铁"
+      },
+      {
+        "position": 3,
+        "url": "https://www.wellcee.com/cn/rent-apartment/shanghai/1003",
+        "name": "浦东 香樟小区",
+        "datePosted": "2026-08-11",
+        "offers": {"price": "4200", "priceCurrency": "RMB", "availability": "https://schema.org/InStock"},
+        "address": {"addressLocality": "上海", "addressRegion": "浦东", "streetAddress": "香樟小区"},
+        "card_text": "租客C 中文 最后登录 2026-08-11 NEW 0 4200 RMB/月 浦东 香樟小区 转租"
+      }
+    ],
+    "itemListName": "Wellcee 上海 租房列表 - 第 1 页",
+    "itemCount": 3
+  },
+  "empty": {
+    "readyState": "complete",
+    "title": "上海租房信息",
+    "url": "https://www.wellcee.com/cn/rent-apartment/shanghai/list",
+    "bodyText": "暂无房源",
+    "hasEmptyState": true,
+    "hasBlockState": false,
+    "items": [],
+    "itemListName": "Wellcee 上海 租房列表 - 第 1 页",
+    "itemCount": 0
+  },
+  "blocked": {
+    "readyState": "complete",
+    "title": "安全验证",
+    "url": "https://www.wellcee.com/cn/rent-apartment/shanghai/list",
+    "bodyText": "请完成安全验证",
+    "hasEmptyState": false,
+    "hasBlockState": true,
+    "items": [],
+    "itemCount": 0
+  }
+}

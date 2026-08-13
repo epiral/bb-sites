@@ -1,0 +1,92 @@
+{
+  "name": "wellcee",
+  "description": "Wellcee 唯心所寓公开房源只读检索与详情 (rental listings: price, area, room type, amenities, source)",
+  "domain": "www.wellcee.com",
+  "version": "0.1.0",
+  "commands": {
+    "search": {
+      "description": "读取 Wellcee 城市公开房源首屏并做本地筛选；不代表全量市场",
+      "auth": "none",
+      "profile": "required",
+      "side_effect": "read_only",
+      "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1,
+      "serialization_key": "site:wellcee",
+      "output_modes": ["legacy", "envelope_v1"],
+      "timeout_class": "standard",
+      "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {
+        "city": {
+          "type": "string",
+          "required": false,
+          "description": "城市；默认上海。当前只接受 Wellcee 公开城市路径"
+        },
+        "district": {
+          "type": "string",
+          "required": false,
+          "description": "区名；对已读取首屏结果做本地匹配"
+        },
+        "query": {
+          "type": "string",
+          "required": false,
+          "description": "对首屏标题、小区、摘要和可见卡片文字做本地匹配，不是站内召回"
+        },
+        "property_type": {
+          "type": "string",
+          "required": false,
+          "enum": ["whole", "share", "short", "long"],
+          "description": "整租/合租/短租/长租；仅使用卡片直接可见文字"
+        },
+        "min_area": {
+          "type": "number",
+          "required": false,
+          "description": "最小面积（平方米）；缺失面积的首屏房源不会被猜测匹配"
+        },
+        "max_area": {
+          "type": "number",
+          "required": false,
+          "description": "最大面积（平方米）；缺失面积的首屏房源不会被猜测匹配"
+        },
+        "min_price": {
+          "type": "number",
+          "required": false,
+          "description": "最低月租；使用卡片公开价格"
+        },
+        "max_price": {
+          "type": "number",
+          "required": false,
+          "description": "最高月租；使用卡片公开价格"
+        },
+        "limit": {
+          "type": "number",
+          "required": false,
+          "description": "返回条数（默认 20，上限 20）；只截取已读取首屏"
+        }
+      }
+    },
+    "detail": {
+      "description": "读取 Wellcee 公开房源详情；缺失字段保持 null（unknown）",
+      "auth": "none",
+      "profile": "required",
+      "side_effect": "read_only",
+      "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1,
+      "serialization_key": "site:wellcee",
+      "output_modes": ["legacy", "envelope_v1"],
+      "timeout_class": "standard",
+      "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {
+        "listing_id": {
+          "type": "string",
+          "required": false,
+          "description": "Wellcee 数字房源 ID；与 url 二选一"
+        },
+        "url": {
+          "type": "string",
+          "required": false,
+          "description": "Wellcee 公开详情 URL；与 listing_id 二选一，query/fragment 不参与请求"
+        }
+      }
+    }
+  }
+}

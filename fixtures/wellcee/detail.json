@@ -1,0 +1,37 @@
+{
+  "normal": {
+    "readyState": "complete",
+    "title": "上海徐汇一室一厅房源出租 - Wellcee",
+    "heading": "徐汇一室一厅房源",
+    "bodyText": "徐汇\n房东A\n中文\n最后登录\n2026-08-13\n详情\n押金\n7800RMB\n类型\n整租/租期不限\n房间\n1卧室/1洗手间\n楼层\n5\n面积\n40㎡\n描述\n房东本人直租，装修不错，近地铁。\n地图",
+    "profile_url": "https://www.wellcee.com/user/9001?token=fixture-secret",
+    "hasBlockState": false,
+    "hasNotFoundState": false,
+    "listing": {
+      "@context": "https://schema.org",
+      "@type": "RealEstateListing",
+      "url": "https://www.wellcee.com/rent-apartment/1001?token=fixture-secret#fragment",
+      "name": "漕溪小区",
+      "description": "房东本人直租，装修不错，近地铁。",
+      "datePosted": "2026-08-13T07:00:00.000Z",
+      "offers": {"@type": "Offer", "price": "7800", "priceCurrency": "RMB", "availability": "https://schema.org/InStock"},
+      "address": {"@type": "PostalAddress", "addressLocality": "上海", "addressRegion": "徐汇", "streetAddress": "漕溪小区", "addressCountry": "CN"},
+      "numberOfBathroomsTotal": 1,
+      "floorSize": {"@type": "QuantitativeValue", "value": "40", "unitCode": "MTK"},
+      "amenityFeature": [
+        {"@type": "LocationFeatureSpecification", "name": "厨房", "value": true},
+        {"@type": "LocationFeatureSpecification", "name": "空调", "value": true}
+      ]
+    }
+  },
+  "not_found": {
+    "readyState": "complete",
+    "title": "房源不存在 - Wellcee",
+    "heading": "",
+    "bodyText": "房源不存在",
+    "profile_url": null,
+    "hasBlockState": false,
+    "hasNotFoundState": true,
+    "listing": null
+  }
+}
