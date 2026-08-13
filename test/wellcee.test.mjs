@@ -61,6 +61,7 @@ const manifest = JSON.parse(await readFile(join(REPO_ROOT, "wellcee", "site.json
 
 test("Wellcee manifest declares only read-only search/detail with envelope v1", () => {
   assert.deepEqual(Object.keys(manifest.commands).sort(), ["detail", "search"]);
+  assert.ok(manifest.commands.detail.params["listing-id"]);
   for (const command of Object.values(manifest.commands)) {
     assert.equal(command.auth, "none");
     assert.equal(command.profile, "required");
@@ -169,6 +170,8 @@ test("Wellcee detail accepts numeric ID, rejects invalid/unknown pages, and pres
   const adapter = await loadAdapter("detail.js", pages.normal);
   const result = await adapter({listing_id: 1001});
   assert.equal(result.data.listing.listing_id, "1001");
+  const hyphenated = await adapter({"listing-id": 1001});
+  assert.equal(hyphenated.data.listing.listing_id, "1001");
   assert.deepEqual((await adapter({url: "https://example.com/rent-apartment/1001"})).code, "INVALID_ARGUMENT");
   assert.deepEqual((await adapter({listing_id: "abc"})).code, "INVALID_ARGUMENT");
 

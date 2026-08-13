@@ -121,11 +121,13 @@ function canonicalProfile(raw) {
 }
 
 module.exports = async function(args) {
-  if (args.url && args.listing_id) return errorResult('Provide only one of url or listing_id', 'Choose --url or --listing-id, not both.', 'INVALID_ARGUMENT');
+  const listingIdArg = args['listing-id'] !== undefined ? args['listing-id'] : args.listing_id;
+  const hasListingId = listingIdArg !== undefined && listingIdArg !== null && listingIdArg !== '';
+  if (args.url && hasListingId) return errorResult('Provide only one of url or listing_id', 'Choose --url or --listing-id, not both.', 'INVALID_ARGUMENT');
   let target = null;
   if (args.url) target = canonicalDetailURL(String(args.url));
-  else if (args.listing_id !== undefined && args.listing_id !== null) {
-    const id = String(args.listing_id).trim();
+  else if (hasListingId) {
+    const id = String(listingIdArg).trim();
     if (/^\d+$/.test(id)) target = {listingId: id, url: 'https://www.wellcee.com/rent-apartment/' + id};
   }
   if (!target) return errorResult('Missing or invalid argument: listing_id/url', 'Provide a numeric --listing-id or a public Wellcee detail --url.', 'INVALID_ARGUMENT');

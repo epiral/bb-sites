@@ -76,7 +76,7 @@
       "timeout_class": "standard",
       "envelope_versions": ["pinix.site-result-envelope.v1"],
       "params": {
-        "listing_id": {
+        "listing-id": {
           "type": "string",
           "required": false,
           "description": "Wellcee 数字房源 ID；与 url 二选一"
