@@ -5,7 +5,8 @@
   "domain": "x.com",
   "args": {
     "screen_name": {"required": true, "description": "Twitter handle (without @)"},
-    "count": {"required": false, "description": "Number of tweets (default 20, max 100)"}
+    "count": {"required": false, "description": "Number of tweets (default 20, max 100)"},
+    "userId": {"required": false, "description": "Known X user rest_id; skips the UserByScreenName lookup to save a rate-limit slot"}
   },
   "capabilities": ["network"],
   "readOnly": true,
@@ -20,20 +21,24 @@ async function(args) {
   const bearer = decodeURIComponent('AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA');
   const _h = {'Authorization':'Bearer '+bearer, 'X-Csrf-Token':ct0, 'X-Twitter-Auth-Type':'OAuth2Session', 'X-Twitter-Active-User':'yes'};
 
-  // First resolve screen_name to userId
-  const uVars = JSON.stringify({screen_name: args.screen_name, withSafetyModeUserFields: true});
-  const uFeats = JSON.stringify({
-    hidden_profile_subscriptions_enabled: true, responsive_web_graphql_exclude_directive_enabled: true,
-    verified_phone_label_enabled: false, responsive_web_graphql_skip_user_profile_image_extensions_enabled: false,
-    responsive_web_graphql_timeline_navigation_enabled: true
-  });
-  const userQueryId = findGraphQLQueryId('UserByScreenName', 'pLsOiyHJ1eFwPJlNmLp4Bg');
-  const uUrl = '/i/api/graphql/' + userQueryId + '/UserByScreenName?variables=' + encodeURIComponent(uVars) + '&features=' + encodeURIComponent(uFeats);
-  const uResp = await fetch(uUrl, {headers: _h, credentials: 'include'});
-  if (!uResp.ok) return {error: 'Failed to resolve user: HTTP ' + uResp.status};
-  const uData = await uResp.json();
-  const userId = uData.data?.user?.result?.rest_id;
-  if (!userId) return {error: 'User not found', hint: 'Check spelling: @' + args.screen_name};
+  // If the caller already knows the userId (cached from a previous run), skip
+  // the UserByScreenName lookup — halves the GraphQL requests per handle.
+  let userId = args.userId ? String(args.userId).trim() : '';
+  if (!userId) {
+    const uVars = JSON.stringify({screen_name: args.screen_name, withSafetyModeUserFields: true});
+    const uFeats = JSON.stringify({
+      hidden_profile_subscriptions_enabled: true, responsive_web_graphql_exclude_directive_enabled: true,
+      verified_phone_label_enabled: false, responsive_web_graphql_skip_user_profile_image_extensions_enabled: false,
+      responsive_web_graphql_timeline_navigation_enabled: true
+    });
+    const userQueryId = findGraphQLQueryId('UserByScreenName', 'pLsOiyHJ1eFwPJlNmLp4Bg');
+    const uUrl = '/i/api/graphql/' + userQueryId + '/UserByScreenName?variables=' + encodeURIComponent(uVars) + '&features=' + encodeURIComponent(uFeats);
+    const uResp = await fetch(uUrl, {headers: _h, credentials: 'include'});
+    if (!uResp.ok) return {error: 'Failed to resolve user: HTTP ' + uResp.status};
+    const uData = await uResp.json();
+    userId = uData.data?.user?.result?.rest_id;
+    if (!userId) return {error: 'User not found', hint: 'Check spelling: @' + args.screen_name};
+  }
 
   const count = Math.min(parseInt(args.count) || 20, 100);
   const variables = JSON.stringify({
@@ -59,7 +64,7 @@ async function(args) {
     responsive_web_enhance_cards_enabled: false
   });
   const fieldToggles = JSON.stringify({withArticlePlainText: false});
-  const tweetsQueryId = findGraphQLQueryId('UserTweets', 'Y59DTUMfcKmUAATiT2SlTw');
+  const tweetsQueryId = findGraphQLQueryId('UserTweets', '6r5OLCC_wFH4CpRyXKuAmQ');
   const url = '/i/api/graphql/' + tweetsQueryId + '/UserTweets?variables=' + encodeURIComponent(variables) + '&features=' + encodeURIComponent(features) + '&fieldToggles=' + encodeURIComponent(fieldToggles);
   const resp = await fetch(url, {headers: _h, credentials: 'include'});
   if (!resp.ok) return {error: 'HTTP ' + resp.status, hint: 'queryId may have changed'};
