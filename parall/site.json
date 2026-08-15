@@ -1,0 +1,176 @@
+{
+  "name": "parall",
+  "description": "Parall authenticated workspace read-only adapters for organizations, projects, tasks, inbox, chats, messages, members, and agents",
+  "domain": "app.parall.com",
+  "version": "0.1.0",
+  "commands": {
+    "me": {
+      "description": "读取当前 Parall session 的用户摘要",
+      "auth": "required",
+      "profile": "required",
+      "side_effect": "read_only",
+      "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1,
+      "serialization_key": "site:parall:{profile}",
+      "output_modes": ["legacy", "envelope_v1"],
+      "timeout_class": "standard",
+      "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {}
+    },
+    "orgs": {
+      "description": "列出当前 Parall session 可见的组织",
+      "auth": "required",
+      "profile": "required",
+      "side_effect": "read_only",
+      "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1,
+      "serialization_key": "site:parall:{profile}",
+      "output_modes": ["legacy", "envelope_v1"],
+      "timeout_class": "standard",
+      "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {}
+    },
+    "projects": {
+      "description": "读取指定组织的项目列表",
+      "auth": "required",
+      "profile": "required",
+      "side_effect": "read_only",
+      "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1,
+      "serialization_key": "site:parall:{profile}",
+      "output_modes": ["legacy", "envelope_v1"],
+      "timeout_class": "standard",
+      "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {"org_id": {"type": "string", "required": true, "description": "组织 ID，来自 parall orgs"}}
+    },
+    "project-summary": {
+      "description": "读取指定组织的项目任务汇总",
+      "auth": "required",
+      "profile": "required",
+      "side_effect": "read_only",
+      "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1,
+      "serialization_key": "site:parall:{profile}",
+      "output_modes": ["legacy", "envelope_v1"],
+      "timeout_class": "standard",
+      "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {"org_id": {"type": "string", "required": true, "description": "组织 ID，来自 parall orgs"}}
+    },
+    "tasks": {
+      "description": "读取指定组织的任务列表",
+      "auth": "required",
+      "profile": "required",
+      "side_effect": "read_only",
+      "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1,
+      "serialization_key": "site:parall:{profile}",
+      "output_modes": ["legacy", "envelope_v1"],
+      "timeout_class": "standard",
+      "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {
+        "org_id": {"type": "string", "required": true, "description": "组织 ID，来自 parall orgs"},
+        "assignee_id": {"type": "string", "required": false, "description": "可选被分配人 ID"},
+        "parent_id": {"type": "string", "required": false, "description": "可选父任务 ID；默认读取顶层任务"},
+        "limit": {"type": "number", "required": false, "description": "条数，默认 100，上限 100"},
+        "sort": {"type": "string", "required": false, "description": "排序字段，默认 created_at"}
+      }
+    },
+    "inbox": {
+      "description": "读取指定组织的通知收件箱",
+      "auth": "required",
+      "profile": "required",
+      "side_effect": "read_only",
+      "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1,
+      "serialization_key": "site:parall:{profile}",
+      "output_modes": ["legacy", "envelope_v1"],
+      "timeout_class": "standard",
+      "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {
+        "org_id": {"type": "string", "required": true, "description": "组织 ID，来自 parall orgs"},
+        "limit": {"type": "number", "required": false, "description": "条数，默认 100，上限 100"},
+        "cursor": {"type": "string", "required": false, "description": "上一页返回的 next_cursor"}
+      }
+    },
+    "chats": {
+      "description": "读取指定组织的聊天/频道列表",
+      "auth": "required",
+      "profile": "required",
+      "side_effect": "read_only",
+      "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1,
+      "serialization_key": "site:parall:{profile}",
+      "output_modes": ["legacy", "envelope_v1"],
+      "timeout_class": "standard",
+      "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {
+        "org_id": {"type": "string", "required": true, "description": "组织 ID，来自 parall orgs"},
+        "limit": {"type": "number", "required": false, "description": "条数，默认 200，上限 200"}
+      }
+    },
+    "messages": {
+      "description": "读取指定聊天的消息及分页状态",
+      "auth": "required",
+      "profile": "required",
+      "side_effect": "read_only",
+      "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1,
+      "serialization_key": "site:parall:{profile}",
+      "output_modes": ["legacy", "envelope_v1"],
+      "timeout_class": "standard",
+      "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {
+        "org_id": {"type": "string", "required": true, "description": "组织 ID，来自 parall orgs"},
+        "chat_id": {"type": "string", "required": true, "description": "聊天 ID，来自 parall chats"},
+        "limit": {"type": "number", "required": false, "description": "条数，默认 50，上限 50"},
+        "cursor": {"type": "string", "required": false, "description": "上一页返回的 next_cursor"},
+        "top_level": {"type": "boolean", "required": false, "description": "是否只读取顶层消息，默认 true"}
+      }
+    },
+    "members": {
+      "description": "读取指定组织成员列表",
+      "auth": "required",
+      "profile": "required",
+      "side_effect": "read_only",
+      "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1,
+      "serialization_key": "site:parall:{profile}",
+      "output_modes": ["legacy", "envelope_v1"],
+      "timeout_class": "standard",
+      "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {"org_id": {"type": "string", "required": true, "description": "组织 ID，来自 parall orgs"}}
+    },
+    "agents": {
+      "description": "读取指定组织的 Agent 列表",
+      "auth": "required",
+      "profile": "required",
+      "side_effect": "read_only",
+      "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1,
+      "serialization_key": "site:parall:{profile}",
+      "output_modes": ["legacy", "envelope_v1"],
+      "timeout_class": "standard",
+      "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {"org_id": {"type": "string", "required": true, "description": "组织 ID，来自 parall orgs"}}
+    },
+    "agent-sessions": {
+      "description": "读取指定 Agent 的会话列表",
+      "auth": "required",
+      "profile": "required",
+      "side_effect": "read_only",
+      "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1,
+      "serialization_key": "site:parall:{profile}",
+      "output_modes": ["legacy", "envelope_v1"],
+      "timeout_class": "standard",
+      "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {
+        "org_id": {"type": "string", "required": true, "description": "组织 ID，来自 parall orgs"},
+        "agent_id": {"type": "string", "required": true, "description": "Agent 用户 ID，来自 parall agents"},
+        "status": {"type": "string", "required": false, "description": "会话状态，默认 open,active,idle"},
+        "limit": {"type": "number", "required": false, "description": "条数，默认 50，上限 50"},
+        "cursor": {"type": "string", "required": false, "description": "上一页返回的 next_cursor"}
+      }
+    }
+  }
+}
