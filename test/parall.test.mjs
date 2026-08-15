@@ -31,7 +31,7 @@ function response(body, ok = true, status = 200) {
 
 function fakeFetch(url, options = {}) {
   const parsed = new URL(url);
-  assert.equal(options.headers?.Authorization, "jwt-fixture");
+  assert.equal(options.headers?.Authorization, "Bearer jwt-fixture");
   const path = parsed.pathname;
   if (path === "/api/v1/users/me") return Promise.resolve(response(fixtures.me));
   if (path === "/api/v1/orgs") return Promise.resolve(response(fixtures.orgs));

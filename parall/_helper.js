@@ -114,7 +114,7 @@ async function parallGet(path) {
   const session = await parallAccessToken();
   if (!session.token) return {ok: false, result: session.error};
 
-  const authorization = /^Bearer\s/i.test(session.token) ? session.token : session.token;
+  const authorization = /^Bearer\s/i.test(session.token) ? session.token : 'Bearer ' + session.token;
   let response;
   try {
     response = await fetch(PARALL_API_BASE + path, {
