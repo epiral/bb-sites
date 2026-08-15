@@ -1,0 +1,34 @@
+{
+  "normal": {
+    "kind": "Listing",
+    "data": {
+      "after": "t3_after",
+      "children": [
+        {
+          "kind": "t3",
+          "data": {
+            "name": "t3_a",
+            "title": "First Reddit post",
+            "author": "alice",
+            "subreddit_name_prefixed": "r/AI_Agents",
+            "score": 12,
+            "num_comments": 3,
+            "created_utc": 1700000000,
+            "url": "https://example.com/a",
+            "permalink": "/r/AI_Agents/comments/a/first/",
+            "selftext": "Self text preview for first result",
+            "is_self": true,
+            "link_flair_text": "Discussion"
+          }
+        }
+      ]
+    }
+  },
+  "empty": {
+    "kind": "Listing",
+    "data": {
+      "after": null,
+      "children": []
+    }
+  }
+}

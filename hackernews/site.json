@@ -1,0 +1,51 @@
+{
+  "name": "hackernews",
+  "description": "Hacker News read-only adapters",
+  "domain": "news.ycombinator.com",
+  "version": "0.1.0",
+  "commands": {
+    "top": {
+      "description": "Fetch current Hacker News top stories",
+      "auth": "none",
+      "profile": "not_applicable",
+      "side_effect": "read_only",
+      "retry_safety": "safe_with_backoff",
+      "max_concurrency": 4,
+      "serialization_key": "site:hackernews",
+      "output_modes": ["legacy", "envelope_v1"],
+      "timeout_class": "standard",
+      "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {
+        "count": {
+          "type": "number",
+          "required": false,
+          "description": "Number of stories (default: 20, max: 50)"
+        }
+      }
+    },
+    "thread": {
+      "description": "Fetch a Hacker News story and bounded comment tree",
+      "auth": "none",
+      "profile": "not_applicable",
+      "side_effect": "read_only",
+      "retry_safety": "safe_with_backoff",
+      "max_concurrency": 4,
+      "serialization_key": "site:hackernews",
+      "output_modes": ["legacy", "envelope_v1"],
+      "timeout_class": "standard",
+      "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {
+        "id": {
+          "type": "string",
+          "required": true,
+          "description": "HN item ID or item URL"
+        },
+        "depth": {
+          "type": "number",
+          "required": false,
+          "description": "Comment tree depth (default: 2, max: 5)"
+        }
+      }
+    }
+  }
+}

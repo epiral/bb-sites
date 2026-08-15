@@ -1,0 +1,97 @@
+{
+  "items": {
+    "200": {
+      "id": 200,
+      "type": "story",
+      "title": "Thread story",
+      "url": "https://example.com/thread",
+      "by": "submitter",
+      "score": 100,
+      "descendants": 4,
+      "time": 1700000000,
+      "kids": [201, 202, 203]
+    },
+    "201": {
+      "id": 201,
+      "type": "comment",
+      "by": "commenter",
+      "text": "Visible comment",
+      "time": 1700000100,
+      "kids": [204]
+    },
+    "202": {
+      "id": 202,
+      "type": "comment",
+      "deleted": true
+    },
+    "203": {
+      "id": 203,
+      "type": "comment",
+      "dead": true
+    },
+    "204": {
+      "id": 204,
+      "type": "comment",
+      "by": "reply",
+      "text": "Nested reply",
+      "time": 1700000200,
+      "kids": [205]
+    },
+    "205": {
+      "id": 205,
+      "type": "comment",
+      "by": "deep",
+      "text": "Depth-limited reply",
+      "time": 1700000300
+    },
+    "210": {
+      "id": 210,
+      "type": "story",
+      "title": "Complete nested story",
+      "url": "https://example.com/complete",
+      "by": "submitter",
+      "score": 50,
+      "descendants": 2,
+      "time": 1700000400,
+      "kids": [211]
+    },
+    "211": {
+      "id": 211,
+      "type": "comment",
+      "by": "top",
+      "text": "Top-level visible",
+      "time": 1700000500,
+      "kids": [212]
+    },
+    "212": {
+      "id": 212,
+      "type": "comment",
+      "by": "nested",
+      "text": "Nested visible",
+      "time": 1700000600
+    },
+    "220": {
+      "id": 220,
+      "type": "story",
+      "deleted": true,
+      "kids": []
+    },
+    "221": {
+      "id": 221,
+      "type": "story",
+      "dead": true,
+      "kids": []
+    },
+    "1234567890123456": {
+      "id": 1234567890123456,
+      "type": "story",
+      "title": "Long numeric string story",
+      "url": "https://example.com/long-id",
+      "by": "longid",
+      "score": 1,
+      "descendants": 0,
+      "time": 1700000700,
+      "kids": []
+    }
+  }
+}

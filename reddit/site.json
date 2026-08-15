@@ -1,0 +1,117 @@
+{
+  "name": "reddit",
+  "description": "Reddit read-only adapters",
+  "domain": "www.reddit.com",
+  "version": "0.1.0",
+  "commands": {
+    "context": {
+      "description": "Fetch context around a Reddit comment",
+      "auth": "optional",
+      "profile": "required",
+      "side_effect": "read_only",
+      "retry_safety": "safe_with_backoff",
+      "output_modes": ["legacy"],
+      "timeout_class": "standard"
+    },
+    "hot": {
+      "description": "Fetch hot Reddit posts",
+      "auth": "optional",
+      "profile": "required",
+      "side_effect": "read_only",
+      "retry_safety": "safe_with_backoff",
+      "output_modes": ["legacy"],
+      "timeout_class": "standard"
+    },
+    "me": {
+      "description": "Fetch current Reddit user info when logged in",
+      "auth": "optional",
+      "profile": "required",
+      "side_effect": "read_only",
+      "retry_safety": "safe_with_backoff",
+      "output_modes": ["legacy"],
+      "timeout_class": "standard"
+    },
+    "posts": {
+      "description": "Fetch Reddit user posts",
+      "auth": "optional",
+      "profile": "required",
+      "side_effect": "read_only",
+      "retry_safety": "safe_with_backoff",
+      "output_modes": ["legacy"],
+      "timeout_class": "standard"
+    },
+    "search": {
+      "description": "Search Reddit posts",
+      "auth": "optional",
+      "profile": "required",
+      "side_effect": "read_only",
+      "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1,
+      "serialization_key": "site:reddit:{profile}",
+      "output_modes": ["legacy", "envelope_v1"],
+      "timeout_class": "standard",
+      "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {
+        "query": {
+          "type": "string",
+          "required": true,
+          "description": "Search query"
+        },
+        "subreddit": {
+          "type": "string",
+          "required": false,
+          "description": "Limit search to a subreddit without r/ prefix"
+        },
+        "sort": {
+          "type": "string",
+          "required": false,
+          "description": "Sort order: relevance, hot, top, new, comments"
+        },
+        "time": {
+          "type": "string",
+          "required": false,
+          "description": "Time filter: all, hour, day, week, month, year"
+        },
+        "count": {
+          "type": "number",
+          "required": false,
+          "description": "Number of results (default: 25, max: 100)"
+        },
+        "after": {
+          "type": "string",
+          "required": false,
+          "description": "Listing cursor for pagination"
+        }
+      }
+    },
+    "thread": {
+      "description": "Fetch a Reddit post and bounded discussion tree",
+      "auth": "optional",
+      "profile": "required",
+      "side_effect": "read_only",
+      "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1,
+      "serialization_key": "site:reddit:{profile}",
+      "output_modes": ["legacy", "envelope_v1"],
+      "timeout_class": "standard",
+      "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {
+        "url": {
+          "type": "string",
+          "required": true,
+          "description": "Reddit post URL"
+        },
+        "depth": {
+          "type": "number",
+          "required": false,
+          "description": "Comment tree depth (default: 10, max: 10)"
+        },
+        "count": {
+          "type": "number",
+          "required": false,
+          "description": "Comment fetch limit (default: 500, max: 500)"
+        }
+      }
+    }
+  }
+}
