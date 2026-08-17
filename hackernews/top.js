@@ -27,47 +27,55 @@ async function(args) {
   const parsedCount = parseInt(args.count);
   const count = Math.min(Math.max(Number.isFinite(parsedCount) ? parsedCount : 20, 1), 50);
 
-  const topUrl = 'https://hacker-news.firebaseio.com/v0/topstories.json';
-  const resp = await fetch(topUrl);
-  if (!resp.ok) return {error: 'HTTP ' + resp.status};
-  const ids = await resp.json();
-  if (!Array.isArray(ids)) return {error: 'Unexpected response', hint: 'HN Firebase topstories response was not a list'};
+  // Parse HN homepage HTML instead of the Firebase REST API. Firebase's
+  // *.firebaseio.com is blocked by an ad/privacy blocker in this browser
+  // environment (confirmed via direct eval — same-origin fetches to
+  // news.ycombinator.com succeed, cross-origin fetches to
+  // hacker-news.firebaseio.com fail with "TypeError: Failed to fetch"
+  // even from a tab already on news.ycombinator.com). Same-origin HTML
+  // parsing sidesteps that entirely. HN shows 30 items per page, so pull
+  // a second page when count > 30.
+  const pagesNeeded = Math.ceil(count / 30);
+  const rows = [];
+  const sourceUrls = [];
+  for (let p = 1; p <= pagesNeeded; p++) {
+    const pageUrl = p === 1 ? 'https://news.ycombinator.com/' : 'https://news.ycombinator.com/news?p=' + p;
+    sourceUrls.push(pageUrl);
+    const resp = await fetch(pageUrl);
+    if (!resp.ok) return {error: 'HTTP ' + resp.status};
+    const html = await resp.text();
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    rows.push(...Array.from(doc.querySelectorAll('tr.athing')));
+    if (rows.length >= count) break;
+  }
+  const totalAvailable = rows.length;
+  const selectedRows = rows.slice(0, count);
 
-  const selected = ids.slice(0, count);
-  const items = await Promise.all(selected.map(async id => {
-    const itemUrl = 'https://hacker-news.firebaseio.com/v0/item/' + id + '.json';
-    const itemResp = await fetch(itemUrl);
-    if (!itemResp.ok) return null;
-    return await itemResp.json();
-  }));
-
-  const stats = {fetch_missing: 0, deleted_dead: 0, non_story: 0, missing_title: 0};
-  const posts = items.map((item, i) => {
-    if (!item) {
-      stats.fetch_missing += 1;
-      return null;
-    }
-    if (item.deleted || item.dead) {
-      stats.deleted_dead += 1;
-      return null;
-    }
-    if (item.type !== 'story') {
-      stats.non_story += 1;
-      return null;
-    }
-    if (!item.id || !item.title) {
+  const stats = {missing_title: 0};
+  const posts = selectedRows.map((row, i) => {
+    const id = Number(row.getAttribute('id'));
+    const titleLink = row.querySelector('.titleline > a');
+    const subtextRow = row.nextElementSibling;
+    const scoreEl = subtextRow?.querySelector('.score');
+    const authorEl = subtextRow?.querySelector('.hnuser');
+    const links = Array.from(subtextRow?.querySelectorAll('a') || []);
+    const commentsLink = links.find(a => /comment/i.test((a.textContent || '').trim())) || links[links.length - 1];
+    const commentsText = (commentsLink?.textContent || '0').trim();
+    const comments = commentsText === 'discuss' ? 0 : (parseInt(commentsText, 10) || 0);
+    const title = titleLink?.textContent?.trim() || null;
+    if (!id || !title) {
       stats.missing_title += 1;
       return null;
     }
     return {
       rank: i + 1,
-      id: item.id,
-      title: item.title || null,
-      url: item.url || null,
-      hn_url: 'https://news.ycombinator.com/item?id=' + item.id,
-      author: item.by || null,
-      score: item.score || 0,
-      comments: item.descendants || 0
+      id,
+      title,
+      url: titleLink?.href || null,
+      hn_url: 'https://news.ycombinator.com/item?id=' + id,
+      author: authorEl?.textContent?.trim() || null,
+      score: parseInt(scoreEl?.textContent || '0', 10) || 0,
+      comments
     };
   }).filter(Boolean);
 
@@ -75,10 +83,10 @@ async function(args) {
     count: posts.length,
     posts
   };
-  const truncated = ids.length > count;
-  const selectedOmitted = stats.fetch_missing + stats.deleted_dead + stats.non_story + stats.missing_title;
-  const completeness = ids.length === 0 ? 'empty' : ((truncated || selectedOmitted > 0) ? 'partial' : 'complete');
-  const reason = ids.length === 0 ? 'no_items' : (
+  const truncated = totalAvailable > count;
+  const selectedOmitted = stats.missing_title;
+  const completeness = totalAvailable === 0 ? 'empty' : ((truncated || selectedOmitted > 0) ? 'partial' : 'complete');
+  const reason = totalAvailable === 0 ? 'no_items' : (
     truncated && selectedOmitted > 0 ? 'limit_truncated_and_selected_items_omitted' :
     selectedOmitted > 0 ? 'selected_items_omitted' :
     truncated ? 'limit_truncated' : 'complete'
@@ -91,21 +99,18 @@ async function(args) {
         effective_args: {count},
         completeness,
         reason,
-        source: {url: topUrl},
+        source: {urls: sourceUrls},
         pagination: {
           limit: count,
-          selected: selected.length,
+          selected: selectedRows.length,
           returned: posts.length,
-          total_available: ids.length,
+          total_available: totalAvailable,
           truncated,
           selected_omitted: selectedOmitted,
-          fetch_missing_omitted: stats.fetch_missing,
-          deleted_dead_omitted: stats.deleted_dead,
-          non_story_omitted: stats.non_story,
           missing_title_omitted: stats.missing_title
         },
         auth: {authenticated_as: 'not_applicable'},
-        warnings: selectedOmitted > 0 ? [{code: 'SELECTED_ITEMS_OMITTED', message: 'Some selected topstories items were missing, deleted/dead, non-story, or lacked a title.'}] : undefined
+        warnings: selectedOmitted > 0 ? [{code: 'SELECTED_ITEMS_OMITTED', message: 'Some selected topstories rows lacked a title or id.'}] : undefined
       }
     },
     data

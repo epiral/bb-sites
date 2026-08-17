@@ -30,8 +30,8 @@ async function(args) {
 
   const _h = {
     'Authorization': 'Bearer ' + bearer, 'X-Csrf-Token': ct0,
-    'X-Twitter-Auth-Type': 'OAuth2Session', 'X-Twitter-Active-User': 'yes',
-    'X-Twitter-Client-Language': 'zh-cn', 'Content-Type': 'application/json',
+    'X-Twitter-Auth-Type': 'OAuth2Session', 'X-Twitter-Active-User': 'no',
+    'X-Twitter-Client-Language': 'en', 'Content-Type': 'application/json',
     'X-Client-Transaction-Id': txId
   };
 
