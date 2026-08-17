@@ -16,15 +16,83 @@
       {"id": "org_personal", "name": "Personal", "is_personal": true, "role": "member", "timezone": "UTC", "created_at": "2026-01-02T00:00:00Z"}
     ]
   },
+  "org": {
+    "id": "org_demo",
+    "name": "Demo Org",
+    "is_personal": false,
+    "timezone": "Asia/Shanghai",
+    "created_at": "2026-01-01T00:00:00Z"
+  },
+  "former_members": {
+    "user_ids": ["usr_former"]
+  },
+  "member_profile": {
+    "user_id": "usr_other",
+    "display_name": "Other User",
+    "type": "human",
+    "title": "Engineer",
+    "description": "Fixture public profile",
+    "profile_version": 2
+  },
+  "agent_instructions": {
+    "agent_user_id": "usr_agent",
+    "instructions": "Use the fixture workspace only.",
+    "version": 3,
+    "updated_at": "2026-08-16T00:00:00Z",
+    "updated_by": "usr_me"
+  },
+  "agent_manager": {
+    "agent_user_id": "usr_agent",
+    "manager_user_id": "usr_me",
+    "version": 2,
+    "updated_at": "2026-08-16T00:00:00Z"
+  },
   "projects": {
     "data": [
-      {"id": "prj_one", "name": "First Project", "key": "FP", "status": "active", "visibility": "org", "org_id": "org_demo", "my_role": "owner", "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-08-16T00:00:00Z"},
-      {"id": "prj_two", "name": "Second Project", "key": "SP", "status": "active", "visibility": "org", "org_id": "org_demo", "my_role": "member", "created_at": "2026-01-02T00:00:00Z", "updated_at": "2026-08-15T00:00:00Z"}
+      {"id": "prj_one", "name": "First Project", "key": "FP", "status": "active", "visibility": "public", "org_id": "org_demo", "my_role": "manager", "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-08-16T00:00:00Z"},
+      {"id": "prj_two", "name": "Second Project", "key": "SP", "status": "active", "visibility": "private", "org_id": "org_demo", "my_role": "member", "created_at": "2026-01-02T00:00:00Z", "updated_at": "2026-08-15T00:00:00Z"}
     ]
   },
   "project_summary": {
-    "projects": {"prj_one": {"total": 3, "done": 1}},
-    "workspace_counts": {"total": 5, "done": 2}
+    "workspace_counts": {
+      "all_issues": 5,
+      "my_issues": 3,
+      "no_project": 0,
+      "my_status_counts": {"todo": 2, "in_progress": 1, "in_review": 0, "done": 2, "canceled": 0}
+    },
+    "projects": [
+      {"project_id": "prj_one", "status_counts": {"todo": 1, "in_progress": 1, "in_review": 0, "done": 1, "canceled": 0}, "completed_series": []}
+    ]
+  },
+  "project_library": {
+    "data": [
+      {"id": "prj_library", "name": "Library Project", "key": "LIB", "visibility": "public", "status": "active"}
+    ]
+  },
+  "project": {
+    "id": "prj_one",
+    "org_id": "org_demo",
+    "name": "First Project",
+    "key": "FP",
+    "description": "Fixture project detail",
+    "status": "active",
+    "visibility": "public",
+    "sort_order": 10,
+    "created_at": "2026-01-01T00:00:00Z",
+    "updated_at": "2026-08-16T00:00:00Z"
+  },
+  "project_join_requests": {
+    "data": [
+      {"id": "apr_one", "project_id": "prj_one", "requester_id": "usr_other", "status": "pending", "created_at": "2026-08-16T00:00:00Z"}
+    ]
+  },
+  "project_members": {
+    "data": [
+      {"project_id": "prj_one", "user_id": "usr_me", "role": "manager", "joined_at": "2026-01-01T00:00:00Z"}
+    ]
+  },
+  "project_readers": {
+    "data": ["usr_me", "usr_other"]
   },
   "tasks": {
     "data": [
@@ -34,6 +102,58 @@
     "has_more": true,
     "next_cursor": "task-cursor-secret"
   },
+  "task": {
+    "id": "tsk_one",
+    "identifier": "FP-1",
+    "title": "First task",
+    "description": "Fixture task detail",
+    "org_id": "org_demo",
+    "project_id": "prj_one",
+    "status": "todo",
+    "priority": "normal",
+    "assignee_id": "usr_me",
+    "creator_id": "usr_me",
+    "created_at": "2026-08-15T00:00:00Z",
+    "updated_at": "2026-08-16T00:00:00Z"
+  },
+  "subtask_summary": {
+    "data": [
+      {"task_id": "tsk_one", "total": 3, "done": 1}
+    ]
+  },
+  "task_subtasks": {
+    "data": [
+      {"id": "tsk_child", "title": "Child task", "project_id": "prj_one", "parent_id": "tsk_one", "status": "todo", "priority": "low"}
+    ],
+    "has_more": false
+  },
+  "task_watchers": {
+    "data": [
+      {"task_id": "tsk_one", "user_id": "usr_me", "created_at": "2026-08-15T00:00:00Z"}
+    ]
+  },
+  "task_relations": {
+    "data": [
+      {"id": "rel_one", "task_id": "tsk_one", "target_type": "message", "target_id": "msg_one", "relation_type": "references"}
+    ]
+  },
+  "target_relations": {
+    "data": [
+      {"id": "rel_one", "task_id": "tsk_one", "target_type": "message", "target_id": "msg_one", "relation_type": "references"}
+    ]
+  },
+  "member_tasks": {
+    "data": [
+      {"id": "tsk_one", "title": "First task", "project_id": "prj_one", "status": "todo", "assignee_id": "usr_me"}
+    ],
+    "has_more": false
+  },
+  "agent_tasks": {
+    "data": [
+      {"id": "tsk_agent", "title": "Agent task", "project_id": "prj_one", "status": "in_progress", "assignee_id": "usr_agent"}
+    ],
+    "has_more": false
+  },
   "inbox": {
     "data": [
       {"id": "inb_one", "type": "mention", "title": "Mentioned", "body": "Fixture notification", "actor_id": "usr_other", "recipient_id": "usr_me", "chat_id": "cht_demo", "entity_id": "msg_one", "entity_type": "message", "org_id": "org_demo", "read_at": null, "created_at": "2026-08-16T00:00:00Z", "updated_at": "2026-08-16T00:00:00Z"}
@@ -41,23 +161,76 @@
     "has_more": true,
     "next_cursor": "inbox-cursor-secret"
   },
+  "inbox_unread": {
+    "count": 3
+  },
   "chats": {
     "data": [
-      {"id": "cht_demo", "name": "Demo Chat", "type": "channel", "description": "Fixture chat", "org_id": "org_demo", "visibility": "org", "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-08-16T00:00:00Z", "last_message_at": "2026-08-16T00:00:00Z", "last_message_preview": "Hello", "last_message_sender": "usr_other", "pinned": false, "hidden": false, "my_notification_level": "all"}
+      {"id": "cht_demo", "name": "Demo Chat", "type": "group", "description": "Fixture chat", "org_id": "org_demo", "visibility": "public", "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-08-16T00:00:00Z", "last_message_at": "2026-08-16T00:00:00Z", "last_message_preview": "Hello", "last_message_sender": "usr_other", "pinned": false, "hidden": false, "my_notification_level": "all"}
+    ],
+    "has_more": false
+  },
+  "discoverable_chats": {
+    "data": [
+      {"id": "cht_public", "name": "Public Chat", "description": "Fixture discoverable chat", "visibility": "public", "member_count": 8}
+    ]
+  },
+  "chat": {
+    "id": "cht_demo",
+    "name": "Demo Chat",
+    "type": "group",
+    "org_id": "org_demo",
+    "visibility": "public",
+    "creator_id": "usr_me",
+    "created_at": "2026-01-01T00:00:00Z",
+    "updated_at": "2026-08-16T00:00:00Z"
+  },
+  "chat_members": {
+    "data": [
+      {"chat_id": "cht_demo", "user_id": "usr_me", "role": "owner", "notification_level": "all"}
+    ]
+  },
+  "member_chats": {
+    "data": [
+      {"id": "cht_demo", "name": "Demo Chat", "type": "group", "org_id": "org_demo"}
     ],
     "has_more": false
   },
   "messages": {
     "data": [
-      {"id": "msg_one", "chat_id": "cht_demo", "author_id": "usr_other", "body": "Fixture message", "created_at": "2026-08-16T00:00:00Z", "updated_at": "2026-08-16T00:00:00Z", "parent_id": null}
+      {"id": "msg_one", "chat_id": "cht_demo", "sender_id": "usr_other", "message_type": "text", "content": {"text": "Fixture message"}, "version": 1, "created_at": "2026-08-16T00:00:00Z", "attachment_ids": []}
     ],
     "has_more": true,
     "next_cursor": "message-cursor-secret"
   },
+  "message": {
+    "id": "msg_one",
+    "chat_id": "cht_demo",
+    "sender_id": "usr_other",
+    "message_type": "text",
+    "content": {"text": "Fixture message"},
+    "version": 1,
+    "created_at": "2026-08-16T00:00:00Z",
+    "attachment_ids": []
+  },
+  "message_replies": {
+    "data": [
+      {"id": "msg_reply", "chat_id": "cht_demo", "sender_id": "usr_me", "thread_root_id": "msg_one", "message_type": "text", "content": {"text": "Fixture reply"}}
+    ],
+    "has_more": true
+  },
+  "message_watchers": {
+    "data": [
+      {"message_id": "msg_one", "user_id": "usr_me", "created_at": "2026-08-16T00:00:00Z"}
+    ]
+  },
+  "message_watching": {
+    "watching": true
+  },
   "members": {
     "data": [
-      {"id": "usr_me", "display_name": "Fixture User", "role": "owner", "status": "active", "org_id": "org_demo"},
-      {"id": "usr_other", "display_name": "Other User", "role": "member", "status": "active", "org_id": "org_demo"}
+      {"org_id": "org_demo", "user_id": "usr_me", "role": "owner", "joined_at": "2026-01-01T00:00:00Z", "onboarding_dismissed": true, "title": "Owner", "description": "Fixture owner", "profile_version": 1, "user": {"id": "usr_me", "display_name": "Fixture User", "type": "human", "status": "active"}},
+      {"org_id": "org_demo", "user_id": "usr_other", "role": "member", "joined_at": "2026-02-01T00:00:00Z", "onboarding_dismissed": false, "title": "Engineer", "description": "Fixture member", "profile_version": 2, "user": {"id": "usr_other", "display_name": "Other User", "type": "human", "status": "active"}}
     ]
   },
   "agents": {
@@ -65,10 +238,47 @@
       {"id": "usr_agent", "display_name": "Fixture Agent", "type": "agent", "status": "active", "org_id": "org_demo"}
     ]
   },
+  "agent_activity": {
+    "data": [
+      {"id": "msg_agent", "chat_id": "cht_demo", "sender_id": "usr_agent", "message_type": "text", "content": {"text": "Agent activity"}}
+    ]
+  },
+  "agent_monitor": {
+    "data": {
+      "online": true,
+      "status": "busy",
+      "session_id": "ses_one",
+      "last_heartbeat_at": "2026-08-16T00:00:00Z",
+      "telemetry": {"queue_depth": 1, "provider_api_key": "fixture-secret"}
+    }
+  },
   "sessions": {
     "data": [
       {"id": "ses_one", "agent_id": "usr_agent", "status": "active", "created_at": "2026-08-16T00:00:00Z", "updated_at": "2026-08-16T00:00:00Z"}
     ],
     "has_more": false
+  },
+  "agent_session": {
+    "id": "ses_one",
+    "agent_id": "usr_agent",
+    "org_id": "org_demo",
+    "status": "active",
+    "runtime_type": "parel",
+    "runtime_lane_key": "primary",
+    "runtime_session_id": "runtime-one",
+    "created_at": "2026-08-16T00:00:00Z"
+  },
+  "agent_steps": {
+    "data": [
+      {"id": "stp_one", "session_id": "ses_one", "step_type": "text", "content": {"text": "Fixture step", "provider_token": "step-secret"}}
+    ],
+    "has_more": true,
+    "next_cursor": "step-cursor-secret"
+  },
+  "agent_step": {
+    "id": "stp_one",
+    "session_id": "ses_one",
+    "step_type": "text",
+    "content": {"text": "Fixture step detail", "authorization": "Bearer fixture"}
   }
 }

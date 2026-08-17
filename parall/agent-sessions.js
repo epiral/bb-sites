@@ -4,7 +4,7 @@
   "description": "读取指定 Agent 的会话列表",
   "domain": "app.parall.com",
   "args": {"org_id": {"required": true, "description": "Organization ID"}, "agent_id": {"required": true, "description": "Agent user ID"}, "status": {"required": false, "description": "Session status filter"}, "limit": {"required": false, "description": "Maximum 100"}, "cursor": {"required": false, "description": "Pagination cursor"}, "sort": {"required": false, "description": "Sort field"}},
-  "params": {"org_id": {"type": "string", "required": true, "description": "Organization ID from parall/orgs"}, "agent_id": {"type": "string", "required": true, "description": "Agent ID from parall agents"}, "status": {"type": "string", "required": false, "description": "Status filter, default open,active,idle"}, "limit": {"type": "number", "required": false, "description": "Number of sessions (default 20, max 100)"}, "cursor": {"type": "string", "required": false, "description": "next_cursor from the previous response"}, "sort": {"type": "string", "required": false, "description": "Optional sort field; exact values are server-controlled"}},
+  "params": {"org_id": {"type": "string", "required": true, "description": "Organization ID from parall/orgs"}, "agent_id": {"type": "string", "required": true, "description": "Agent ID from parall agents"}, "status": {"type": "string", "required": false, "description": "Optional comma-separated Session status filter"}, "limit": {"type": "number", "required": false, "description": "Number of sessions (default 20, max 100)"}, "cursor": {"type": "string", "required": false, "description": "next_cursor from the previous response"}, "sort": {"type": "string", "required": false, "description": "Optional sort field; exact values are server-controlled"}},
   "auth": "required",
   "profile": "required",
   "side_effect": "read_only",
@@ -24,7 +24,7 @@ module.exports = async function(args) {
   const agent = parallResourceId(args.agent_id, 'usr_', 'agent_id');
   if (agent.error) return agent.error;
   const limit = parallLimit(args.limit, 20, 100);
-  const status = parallString(args.status) || 'open,active,idle';
+  const status = args.status ? parallString(args.status) : null;
   const cursor = args.cursor ? parallString(args.cursor) : null;
   const sort = args.sort ? parallString(args.sort) : null;
   const path = '/orgs/' + encodeURIComponent(org.value) + '/agents/' + encodeURIComponent(agent.value) + '/sessions?' + parallQuery([
@@ -40,8 +40,10 @@ module.exports = async function(args) {
     body: result.body,
     orgId: org.value,
     itemsKey: 'sessions',
-    args: {org_id: org.value, agent_id: agent.value, status, limit, ...(cursor ? {cursor} : {}), ...(sort ? {sort} : {})},
+    args: {org_id: org.value, agent_id: agent.value, ...(status ? {status} : {}), limit, ...(cursor ? {cursor} : {}), ...(sort ? {sort} : {})},
     path,
-    limit
+    limit,
+    governance: true,
+    extraWarnings: [{code: 'GOVERNANCE_ENUMERATION_REQUIRED', message: 'The Server permits session enumeration only to governance-tier principals; denial may be non-enumerating.'}]
   });
 };

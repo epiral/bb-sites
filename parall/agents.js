@@ -30,6 +30,8 @@ module.exports = async function(args) {
     orgId: org.value,
     itemsKey: 'agents',
     args: {org_id: org.value},
-    path
+    path,
+    governance: true,
+    extraWarnings: [{code: 'SERVER_REDACTION_APPLIES', message: 'Agent profile and instructions fields are projected or redacted by the Server for the authenticated principal.'}]
   });
 };

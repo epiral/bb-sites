@@ -28,6 +28,14 @@ function parallResourceId(value, prefix, name) {
   return {value: id};
 }
 
+function parallOpaqueId(value, name) {
+  const id = parallString(value);
+  if (!id || !/^[A-Za-z0-9_-]+$/.test(id)) {
+    return {error: parallError('Missing or invalid argument: ' + name, 'Provide a valid ' + name + '.', 'INVALID_ARGUMENT')};
+  }
+  return {value: id};
+}
+
 function parallLimit(value, fallback, maximum) {
   const parsed = Number.parseInt(value, 10);
   return Math.min(Math.max(Number.isFinite(parsed) ? parsed : fallback, 1), maximum);
@@ -40,18 +48,18 @@ function parallQuery(entries) {
     .join('&');
 }
 
-function parallSafeErrorValue(value, depth = 0) {
+function parallSafeValue(value, depth = 0) {
   if (depth > 4) return '[truncated]';
   if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value;
-  if (Array.isArray(value)) return value.slice(0, 50).map((item) => parallSafeErrorValue(item, depth + 1));
+  if (Array.isArray(value)) return value.slice(0, 200).map((item) => parallSafeValue(item, depth + 1));
   if (typeof value !== 'object') return undefined;
   const output = {};
-  for (const [key, item] of Object.entries(value).slice(0, 50)) {
-    if (/token|secret|api[_-]?key|cookie|authorization|password|jwt/i.test(key)) {
+  for (const [key, item] of Object.entries(value).slice(0, 200)) {
+    if (/token|secret|api[_-]?key|private[_-]?key|credential|cookie|authorization|password|jwt|provider[_-]?error|raw[_-]?error/i.test(key)) {
       output[key] = '[redacted]';
       continue;
     }
-    const safe = parallSafeErrorValue(item, depth + 1);
+    const safe = parallSafeValue(item, depth + 1);
     if (safe !== undefined) output[key] = safe;
   }
   return output;
@@ -67,18 +75,21 @@ function parallErrorFromResponse(status, body, headers) {
   if (typeof nested.action === 'string') extra.action = nested.action;
   if (typeof nested.resource_uri === 'string' && nested.resource_uri.startsWith('prll://')) extra.resource_uri = nested.resource_uri;
   if (typeof nested.approvable === 'boolean') extra.approvable = nested.approvable;
-  if (nested.details !== undefined) extra.details = parallSafeErrorValue(nested.details);
+  if (nested.details !== undefined) extra.details = parallSafeValue(nested.details);
   const retryAfter = headers?.get?.('Retry-After');
   if (retryAfter !== null && retryAfter !== undefined && /^\d+(?:\.\d+)?$/.test(String(retryAfter))) extra.retry_after_seconds = Number(retryAfter);
   return parallError(message, hint, code, extra);
 }
 
 function parallSafeSource(path) {
-  const safePath = String(path)
-    .replace(/([?&](?:cursor|before|after|token|access_token|refresh_token)=[^&]*)/gi, '')
-    .replace('?&', '?')
-    .replace(/[?&]$/, '');
-  return PARALL_API_BASE + safePath;
+  const source = new URL(PARALL_API_BASE + String(path));
+  for (const key of ['cursor', 'before', 'after', 'q', 'token', 'access_token', 'refresh_token', 'authorization', 'api_key', 'secret', 'password', 'jwt']) {
+    source.searchParams.delete(key);
+  }
+  source.username = '';
+  source.password = '';
+  source.hash = '';
+  return source.toString();
 }
 
 function parallCarrier(data, metadata) {
@@ -100,8 +111,20 @@ function parallWarnings(extra = []) {
   ];
 }
 
+function parallGovernanceWarnings(extra = []) {
+  return parallWarnings([
+    {code: 'GOVERNANCE_SCOPED_DATA', message: 'This endpoint may return governance-scoped or redacted data depending on the authenticated principal and resource context.'},
+    ...extra
+  ]);
+}
+
 function parallCompleteness(body, items) {
-  if (body && body.has_more === true) return {completeness: 'partial', reason: 'pagination_available'};
+  if (body && body.has_more === true) {
+    return {
+      completeness: 'partial',
+      reason: body.next_cursor ? 'pagination_available' : 'pagination_cursor_unavailable'
+    };
+  }
   if (Array.isArray(items) && items.length === 0) return {completeness: 'empty', reason: 'no_results'};
   return {completeness: 'complete', reason: 'complete'};
 }
@@ -113,6 +136,10 @@ function parallPagination(body, limit, returned) {
     ...(typeof body?.has_more === 'boolean' ? {has_more: body.has_more} : {}),
     ...(body?.next_cursor ? {next_cursor: body.next_cursor} : {})
   };
+}
+
+function parallInvalidResponse(expected) {
+  return parallError('Invalid Parall API response', 'Expected ' + expected + '; do not treat a malformed success response as empty.', 'INVALID_RESPONSE');
 }
 
 async function parallGet(path) {
@@ -155,8 +182,9 @@ async function parallGet(path) {
   }
 }
 
-function parallListResult({data, body, orgId, itemsKey, args, path, limit, extraWarnings = []}) {
-  const items = Array.isArray(data) ? data : [];
+function parallListResult({data, body, orgId, itemsKey, args, path, limit, extraWarnings = [], governance = false}) {
+  if (!Array.isArray(data)) return parallInvalidResponse('an array in the documented response field');
+  const items = parallSafeValue(data);
   const state = parallCompleteness(body, items);
   const output = {
     ...(orgId ? {org_id: orgId} : {}),
@@ -166,7 +194,14 @@ function parallListResult({data, body, orgId, itemsKey, args, path, limit, extra
     ...(body?.next_cursor ? {next_cursor: body.next_cursor} : {}),
     observed_at: new Date().toISOString()
   };
-  const warnings = parallWarnings(body?.has_more === true ? [{code: 'PAGINATION_AVAILABLE', message: 'Use the returned next_cursor before treating the result as complete.'}] : extraWarnings);
+  const paginationWarnings = body?.has_more === true
+    ? body?.next_cursor
+      ? [{code: 'PAGINATION_AVAILABLE', message: 'Use the returned next_cursor before treating the result as complete.'}]
+      : [{code: 'PAGINATION_CURSOR_UNAVAILABLE', message: 'The provider reports more results but this endpoint did not return a continuation cursor; do not invent one.'}]
+    : [];
+  const warnings = governance
+    ? parallGovernanceWarnings([...paginationWarnings, ...extraWarnings])
+    : parallWarnings([...paginationWarnings, ...extraWarnings]);
   return parallCarrier(output, {
     effective_args: args,
     completeness: state.completeness,
@@ -176,4 +211,46 @@ function parallListResult({data, body, orgId, itemsKey, args, path, limit, extra
     auth: parallAuth(),
     warnings
   });
+}
+
+function parallObjectResult({data, orgId, dataKey, args, path, reason = 'complete', extraWarnings = [], governance = false}) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return parallInvalidResponse('a JSON object');
+  const safe = parallSafeValue(data);
+  const output = {
+    ...(orgId ? {org_id: orgId} : {}),
+    [dataKey]: safe,
+    observed_at: new Date().toISOString()
+  };
+  return parallCarrier(output, {
+    effective_args: args,
+    completeness: 'complete',
+    reason,
+    source: {url: parallSafeSource(path)},
+    pagination: {supported: false, returned: 1},
+    auth: parallAuth(),
+    warnings: governance ? parallGovernanceWarnings(extraWarnings) : parallWarnings(extraWarnings)
+  });
+}
+
+async function parallReadList({path, orgId, itemsKey, args, limit, extraWarnings = [], governance = false}) {
+  const result = await parallGet(path);
+  if (!result.ok) return result.result;
+  return parallListResult({
+    data: result.body?.data,
+    body: result.body,
+    orgId,
+    itemsKey,
+    args,
+    path,
+    limit,
+    extraWarnings,
+    governance
+  });
+}
+
+async function parallReadObject({path, orgId, dataKey, args, nestedKey, reason, extraWarnings = [], governance = false}) {
+  const result = await parallGet(path);
+  if (!result.ok) return result.result;
+  const data = nestedKey ? result.body?.[nestedKey] : result.body;
+  return parallObjectResult({data, orgId, dataKey, args, path, reason, extraWarnings, governance});
 }

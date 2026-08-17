@@ -24,7 +24,10 @@ module.exports = async function(args) {
   const path = '/orgs/' + encodeURIComponent(org.value) + '/projects/task-summary';
   const result = await parallGet(path);
   if (!result.ok) return result.result;
-  const body = result.body && typeof result.body === 'object' ? result.body : {};
+  if (!result.body || typeof result.body !== 'object' || Array.isArray(result.body)) {
+    return parallInvalidResponse('a ProjectTaskSummaryResponse object');
+  }
+  const body = parallSafeValue(result.body);
   return parallCarrier({org_id: org.value, ...body, observed_at: new Date().toISOString()}, {
     effective_args: {org_id: org.value},
     completeness: 'complete',

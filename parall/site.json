@@ -1,8 +1,8 @@
 {
   "name": "parall",
-  "description": "Parall authenticated workspace read-only adapters for organizations, projects, tasks, inbox, chats, messages, members, and agents",
+  "description": "Parall Web workspace read-only API surface for identity, organizations, members, projects, tasks, inbox, chats, messages, agents, sessions, and steps",
   "domain": "app.parall.com",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "commands": {
     "me": {
       "description": "读取当前 Parall session 的用户摘要",
@@ -183,11 +183,203 @@
       "params": {
         "org_id": {"type": "string", "required": true, "description": "组织 ID，来自 parall orgs"},
         "agent_id": {"type": "string", "required": true, "description": "Agent 用户 ID，来自 parall agents"},
-        "status": {"type": "string", "required": false, "description": "会话状态，默认 open,active,idle"},
+        "status": {"type": "string", "required": false, "description": "可选逗号分隔 Session status filter"},
         "limit": {"type": "number", "required": false, "description": "条数，默认 20，上限 100"},
         "cursor": {"type": "string", "required": false, "description": "上一页返回的 next_cursor"},
         "sort": {"type": "string", "required": false, "description": "可选排序字段；具体值由 Server 控制"}
       }
+    },
+    "org": {
+      "description": "读取指定组织详情",
+      "auth": "required", "profile": "required", "side_effect": "read_only", "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1, "serialization_key": "site:parall:{profile}", "output_modes": ["legacy", "envelope_v1"], "timeout_class": "standard", "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {"org_id": {"type": "string", "required": true, "description": "组织 ID，来自 parall orgs"}}
+    },
+    "former-members": {
+      "description": "读取组织已移除成员 ID 列表",
+      "auth": "required", "profile": "required", "side_effect": "read_only", "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1, "serialization_key": "site:parall:{profile}", "output_modes": ["legacy", "envelope_v1"], "timeout_class": "standard", "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {"org_id": {"type": "string", "required": true, "description": "组织 ID"}}
+    },
+    "member-profile": {
+      "description": "读取组织成员公开画像",
+      "auth": "required", "profile": "required", "side_effect": "read_only", "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1, "serialization_key": "site:parall:{profile}", "output_modes": ["legacy", "envelope_v1"], "timeout_class": "standard", "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {"org_id": {"type": "string", "required": true, "description": "组织 ID"}, "user_id": {"type": "string", "required": true, "description": "成员用户 ID"}}
+    },
+    "agent-instructions": {
+      "description": "读取授权可见的 Agent 私有 instructions（no-store）",
+      "auth": "required", "profile": "required", "side_effect": "read_only", "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1, "serialization_key": "site:parall:{profile}", "output_modes": ["legacy", "envelope_v1"], "timeout_class": "standard", "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {"org_id": {"type": "string", "required": true, "description": "组织 ID"}, "agent_id": {"type": "string", "required": true, "description": "Agent 用户 ID"}}
+    },
+    "agent-manager": {
+      "description": "读取 Agent manager 投影",
+      "auth": "required", "profile": "required", "side_effect": "read_only", "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1, "serialization_key": "site:parall:{profile}", "output_modes": ["legacy", "envelope_v1"], "timeout_class": "standard", "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {"org_id": {"type": "string", "required": true, "description": "组织 ID"}, "agent_id": {"type": "string", "required": true, "description": "Agent 用户 ID"}}
+    },
+    "project-library": {
+      "description": "读取组织项目 library",
+      "auth": "required", "profile": "required", "side_effect": "read_only", "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1, "serialization_key": "site:parall:{profile}", "output_modes": ["legacy", "envelope_v1"], "timeout_class": "standard", "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {"org_id": {"type": "string", "required": true, "description": "组织 ID"}}
+    },
+    "project": {
+      "description": "读取单个可见项目详情",
+      "auth": "required", "profile": "required", "side_effect": "read_only", "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1, "serialization_key": "site:parall:{profile}", "output_modes": ["legacy", "envelope_v1"], "timeout_class": "standard", "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {"org_id": {"type": "string", "required": true, "description": "组织 ID"}, "project_id": {"type": "string", "required": true, "description": "项目 ID"}}
+    },
+    "project-join-requests": {
+      "description": "读取项目加入申请（需要 manager 权限）",
+      "auth": "required", "profile": "required", "side_effect": "read_only", "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1, "serialization_key": "site:parall:{profile}", "output_modes": ["legacy", "envelope_v1"], "timeout_class": "standard", "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {"org_id": {"type": "string", "required": true, "description": "组织 ID"}, "project_id": {"type": "string", "required": true, "description": "项目 ID"}}
+    },
+    "project-members": {
+      "description": "读取项目成员",
+      "auth": "required", "profile": "required", "side_effect": "read_only", "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1, "serialization_key": "site:parall:{profile}", "output_modes": ["legacy", "envelope_v1"], "timeout_class": "standard", "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {"org_id": {"type": "string", "required": true, "description": "组织 ID"}, "project_id": {"type": "string", "required": true, "description": "项目 ID"}}
+    },
+    "project-readers": {
+      "description": "读取项目 reader 用户 ID",
+      "auth": "required", "profile": "required", "side_effect": "read_only", "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1, "serialization_key": "site:parall:{profile}", "output_modes": ["legacy", "envelope_v1"], "timeout_class": "standard", "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {"org_id": {"type": "string", "required": true, "description": "组织 ID"}, "project_id": {"type": "string", "required": true, "description": "项目 ID"}}
+    },
+    "task": {
+      "description": "读取单个任务详情",
+      "auth": "required", "profile": "required", "side_effect": "read_only", "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1, "serialization_key": "site:parall:{profile}", "output_modes": ["legacy", "envelope_v1"], "timeout_class": "standard", "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {"org_id": {"type": "string", "required": true, "description": "组织 ID"}, "task_id": {"type": "string", "required": true, "description": "任务 ID"}}
+    },
+    "task-subtask-summary": {
+      "description": "读取任务的子任务计数摘要",
+      "auth": "required", "profile": "required", "side_effect": "read_only", "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1, "serialization_key": "site:parall:{profile}", "output_modes": ["legacy", "envelope_v1"], "timeout_class": "standard", "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {"org_id": {"type": "string", "required": true, "description": "组织 ID"}, "assignee_id": {"type": "string", "required": false, "description": "被分配人 ID"}, "project_id": {"type": "string", "required": false, "description": "项目 ID"}}
+    },
+    "task-subtasks": {
+      "description": "分页读取指定任务的子任务",
+      "auth": "required", "profile": "required", "side_effect": "read_only", "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1, "serialization_key": "site:parall:{profile}", "output_modes": ["legacy", "envelope_v1"], "timeout_class": "standard", "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {"org_id": {"type": "string", "required": true, "description": "组织 ID"}, "task_id": {"type": "string", "required": true, "description": "父任务 ID"}, "limit": {"type": "number", "required": false, "description": "默认 50，上限 200"}, "cursor": {"type": "string", "required": false, "description": "opaque cursor"}, "sort": {"type": "string", "required": false, "description": "排序字段"}, "order": {"type": "string", "required": false, "description": "排序方向"}}
+    },
+    "task-watchers": {
+      "description": "读取任务观察者",
+      "auth": "required", "profile": "required", "side_effect": "read_only", "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1, "serialization_key": "site:parall:{profile}", "output_modes": ["legacy", "envelope_v1"], "timeout_class": "standard", "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {"org_id": {"type": "string", "required": true, "description": "组织 ID"}, "task_id": {"type": "string", "required": true, "description": "任务 ID"}}
+    },
+    "task-relations": {
+      "description": "读取任务关系",
+      "auth": "required", "profile": "required", "side_effect": "read_only", "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1, "serialization_key": "site:parall:{profile}", "output_modes": ["legacy", "envelope_v1"], "timeout_class": "standard", "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {"org_id": {"type": "string", "required": true, "description": "组织 ID"}, "task_id": {"type": "string", "required": true, "description": "任务 ID"}}
+    },
+    "target-task-relations": {
+      "description": "按 target 查询任务关系",
+      "auth": "required", "profile": "required", "side_effect": "read_only", "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1, "serialization_key": "site:parall:{profile}", "output_modes": ["legacy", "envelope_v1"], "timeout_class": "standard", "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {"org_id": {"type": "string", "required": true, "description": "组织 ID"}, "target_type": {"type": "string", "required": true, "description": "关系 target type"}, "target_id": {"type": "string", "required": true, "description": "关系 target ID"}}
+    },
+    "member-tasks": {
+      "description": "分页读取成员待处理任务视图",
+      "auth": "required", "profile": "required", "side_effect": "read_only", "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1, "serialization_key": "site:parall:{profile}", "output_modes": ["legacy", "envelope_v1"], "timeout_class": "standard", "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {"org_id": {"type": "string", "required": true, "description": "组织 ID"}, "member_id": {"type": "string", "required": true, "description": "成员 ID"}, "limit": {"type": "number", "required": false, "description": "默认 50，上限 200"}, "cursor": {"type": "string", "required": false, "description": "opaque cursor"}}
+    },
+    "agent-tasks": {
+      "description": "分页读取 Agent 待处理任务视图",
+      "auth": "required", "profile": "required", "side_effect": "read_only", "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1, "serialization_key": "site:parall:{profile}", "output_modes": ["legacy", "envelope_v1"], "timeout_class": "standard", "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {"org_id": {"type": "string", "required": true, "description": "组织 ID"}, "agent_id": {"type": "string", "required": true, "description": "Agent ID"}, "limit": {"type": "number", "required": false, "description": "默认 50，上限 200"}, "cursor": {"type": "string", "required": false, "description": "opaque cursor"}}
+    },
+    "inbox-unread-count": {
+      "description": "读取当前用户 Inbox 未读数",
+      "auth": "required", "profile": "required", "side_effect": "read_only", "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1, "serialization_key": "site:parall:{profile}", "output_modes": ["legacy", "envelope_v1"], "timeout_class": "standard", "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {"org_id": {"type": "string", "required": true, "description": "组织 ID"}}
+    },
+    "discoverable-chats": {
+      "description": "读取可发现的公开 Chat",
+      "auth": "required", "profile": "required", "side_effect": "read_only", "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1, "serialization_key": "site:parall:{profile}", "output_modes": ["legacy", "envelope_v1"], "timeout_class": "standard", "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {"org_id": {"type": "string", "required": true, "description": "组织 ID"}, "q": {"type": "string", "required": false, "description": "可选查询"}, "limit": {"type": "number", "required": false, "description": "可选条数，adapter 上限 200"}}
+    },
+    "chat": {
+      "description": "读取单个 Chat 详情",
+      "auth": "required", "profile": "required", "side_effect": "read_only", "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1, "serialization_key": "site:parall:{profile}", "output_modes": ["legacy", "envelope_v1"], "timeout_class": "standard", "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {"org_id": {"type": "string", "required": true, "description": "组织 ID"}, "chat_id": {"type": "string", "required": true, "description": "Chat ID"}}
+    },
+    "chat-members": {
+      "description": "读取 Chat 成员",
+      "auth": "required", "profile": "required", "side_effect": "read_only", "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1, "serialization_key": "site:parall:{profile}", "output_modes": ["legacy", "envelope_v1"], "timeout_class": "standard", "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {"org_id": {"type": "string", "required": true, "description": "组织 ID"}, "chat_id": {"type": "string", "required": true, "description": "Chat ID"}}
+    },
+    "member-chats": {
+      "description": "分页读取与指定成员共同可见的 Chat",
+      "auth": "required", "profile": "required", "side_effect": "read_only", "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1, "serialization_key": "site:parall:{profile}", "output_modes": ["legacy", "envelope_v1"], "timeout_class": "standard", "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {"org_id": {"type": "string", "required": true, "description": "组织 ID"}, "member_id": {"type": "string", "required": true, "description": "成员 ID"}, "limit": {"type": "number", "required": false, "description": "默认 50，上限 200"}, "cursor": {"type": "string", "required": false, "description": "opaque cursor"}}
+    },
+    "message": {
+      "description": "读取单条可见 Message",
+      "auth": "required", "profile": "required", "side_effect": "read_only", "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1, "serialization_key": "site:parall:{profile}", "output_modes": ["legacy", "envelope_v1"], "timeout_class": "standard", "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {"message_id": {"type": "string", "required": true, "description": "Message ID"}}
+    },
+    "message-replies": {
+      "description": "读取 Message replies；provider 可能报告 has_more 但不返回 cursor",
+      "auth": "required", "profile": "required", "side_effect": "read_only", "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1, "serialization_key": "site:parall:{profile}", "output_modes": ["legacy", "envelope_v1"], "timeout_class": "standard", "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {"message_id": {"type": "string", "required": true, "description": "Message ID"}, "limit": {"type": "number", "required": false, "description": "默认 50，上限 200"}, "cursor": {"type": "string", "required": false, "description": "opaque cursor"}}
+    },
+    "message-watchers": {
+      "description": "读取 Message thread 观察者",
+      "auth": "required", "profile": "required", "side_effect": "read_only", "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1, "serialization_key": "site:parall:{profile}", "output_modes": ["legacy", "envelope_v1"], "timeout_class": "standard", "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {"message_id": {"type": "string", "required": true, "description": "Message ID"}}
+    },
+    "message-watching": {
+      "description": "读取当前用户是否观察 Message thread",
+      "auth": "required", "profile": "required", "side_effect": "read_only", "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1, "serialization_key": "site:parall:{profile}", "output_modes": ["legacy", "envelope_v1"], "timeout_class": "standard", "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {"message_id": {"type": "string", "required": true, "description": "Message ID"}}
+    },
+    "agent-activity": {
+      "description": "读取 Agent 最近活动消息",
+      "auth": "required", "profile": "required", "side_effect": "read_only", "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1, "serialization_key": "site:parall:{profile}", "output_modes": ["legacy", "envelope_v1"], "timeout_class": "standard", "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {"org_id": {"type": "string", "required": true, "description": "组织 ID"}, "agent_id": {"type": "string", "required": true, "description": "Agent ID"}, "limit": {"type": "number", "required": false, "description": "默认 50，上限 200"}}
+    },
+    "agent-monitor": {
+      "description": "读取 Agent runtime monitor 投影",
+      "auth": "required", "profile": "required", "side_effect": "read_only", "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1, "serialization_key": "site:parall:{profile}", "output_modes": ["legacy", "envelope_v1"], "timeout_class": "standard", "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {"org_id": {"type": "string", "required": true, "description": "组织 ID"}, "agent_id": {"type": "string", "required": true, "description": "Agent ID"}}
+    },
+    "agent-session": {
+      "description": "读取单个 Agent Session；可能按上下文脱敏",
+      "auth": "required", "profile": "required", "side_effect": "read_only", "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1, "serialization_key": "site:parall:{profile}", "output_modes": ["legacy", "envelope_v1"], "timeout_class": "standard", "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {"org_id": {"type": "string", "required": true, "description": "组织 ID"}, "agent_id": {"type": "string", "required": true, "description": "Agent ID"}, "session_id": {"type": "string", "required": true, "description": "Session ID"}}
+    },
+    "agent-session-steps": {
+      "description": "分页读取 Agent Session steps；可能按上下文过滤/摘要",
+      "auth": "required", "profile": "required", "side_effect": "read_only", "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1, "serialization_key": "site:parall:{profile}", "output_modes": ["legacy", "envelope_v1"], "timeout_class": "standard", "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {"org_id": {"type": "string", "required": true, "description": "组织 ID"}, "agent_id": {"type": "string", "required": true, "description": "Agent ID"}, "session_id": {"type": "string", "required": true, "description": "Session ID"}, "limit": {"type": "number", "required": false, "description": "默认 200，上限 1000"}, "cursor": {"type": "string", "required": false, "description": "opaque cursor"}}
+    },
+    "agent-step": {
+      "description": "读取单个 Agent Step；可能按上下文摘要",
+      "auth": "required", "profile": "required", "side_effect": "read_only", "retry_safety": "safe_with_backoff",
+      "max_concurrency": 1, "serialization_key": "site:parall:{profile}", "output_modes": ["legacy", "envelope_v1"], "timeout_class": "standard", "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {"org_id": {"type": "string", "required": true, "description": "组织 ID"}, "agent_id": {"type": "string", "required": true, "description": "Agent ID"}, "session_id": {"type": "string", "required": true, "description": "Session ID"}, "step_id": {"type": "string", "required": true, "description": "Step ID"}}
     }
   }
 }

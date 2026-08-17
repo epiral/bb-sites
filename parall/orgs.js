@@ -17,23 +17,5 @@
 */
 
 module.exports = async function() {
-  const result = await parallGet('/orgs');
-  if (!result.ok) return result.result;
-  const data = Array.isArray(result.body?.data) ? result.body.data : [];
-  const orgs = data.map((org) => {
-    const item = {};
-    for (const key of ['id', 'name', 'is_personal', 'role', 'timezone', 'created_at']) {
-      if (org[key] !== undefined) item[key] = org[key];
-    }
-    return item;
-  });
-  return parallCarrier({count: orgs.length, orgs, observed_at: new Date().toISOString()}, {
-    effective_args: {},
-    completeness: orgs.length ? 'complete' : 'empty',
-    reason: orgs.length ? 'complete' : 'no_results',
-    source: {url: parallSafeSource('/orgs')},
-    pagination: {supported: false, returned: orgs.length},
-    auth: parallAuth(),
-    warnings: parallWarnings()
-  });
+  return parallReadList({path: '/orgs', itemsKey: 'orgs', args: {}});
 };
