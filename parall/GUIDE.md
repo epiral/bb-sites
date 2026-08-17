@@ -1,7 +1,9 @@
 # Parall 只读 Adapter 使用指南
 
-`pinix/parall` 用 Pinix Edge 读取当前浏览器 profile 中已登录 Parall workspace 的数据。
-它只提供只读命令，不发送消息、不修改项目或任务、不创建资源，也不处理登录凭证。
+`pinix/parall` 用 Pinix Edge 在当前浏览器 profile 的页面 session 中读取 Parall workspace 数据。
+它只提供只读命令，不发送消息、不修改项目或任务、不创建资源，也不处理或转移登录凭证。
+
+Adapter 通过页面上下文请求复用 cookie/session；不会读取 browser localStorage、cookie 或页面存储中的 JWT，也不会把凭证带入 Node VM、connector、日志或结果。API origin 是 Adapter 的显式配置，不由 Pinix 环境推断；若目标 API 只接受 bearer 且页面 session 无法授权，命令返回认证错误并停止，不自行补 bridge。
 
 ## 前置条件
 
@@ -72,13 +74,15 @@ $PINIX --edge "$EDGE" site parall tasks \
 
 常用可选参数：
 
-- `tasks`：`--assignee_id`、`--parent_id`、`--limit`（上限 100）、`--sort`
-- `inbox`：`--limit`（上限 100）、`--cursor`
-- `chats`：`--limit`（上限 200）
-- `messages`：`--limit`（上限 50）、`--cursor`、`--top_level true|false`
-- `agent-sessions`：`--status`、`--limit`（上限 50）、`--cursor`
+- `tasks`：`--q`、`--status`、`--priority`、`--assignee_id`、`--creator_id`、`--parent_id`、`--project_id`、`--label_ids`、`--scope active|archived|all`、`--limit`（默认 50，上限 200）、`--cursor`、`--sort`、`--order`
+- `inbox`：`--limit`（默认 50，adapter 上限 100）、`--cursor`、`--type`、`--read`
+- `chats`：`--limit`（默认 50，上限 200）、`--cursor`、`--scope active|archived|all`
+- `messages`：`--limit`（默认 50，上限 200）、legacy `--cursor`/`--before`、`--after`、`--thread_root_id`、`--since`
+- `agent-sessions`：`--status`、`--limit`（默认 20，上限 100）、`--cursor`、`--sort`
 
 `messages` 的 `chat_id` 来自 `chats`；`agent-sessions` 的 `agent_id` 来自 `agents`。
+`parent_id` 是父任务 ID，不是项目 ID；项目级任务查询使用 `project_id`。
+`messages` 的 `before` 与 `after` 互斥，`cursor` 仅保留为 legacy `before` 别名；`top_level` 不是当前 public filter。
 
 ## 输出模式
 
@@ -120,7 +124,7 @@ Envelope 中的关键字段：
 
 | code | 含义 |
 |---|---|
-| `AUTH_REQUIRED` | profile 没有可用 Parall session，或 session 已失效 |
+| `AUTH_REQUIRED` | profile 没有可用 Parall page session，session 已失效，或目标 API 只接受页面无法提供的 bearer |
 | `FORBIDDEN` | 当前账号没有该组织资源权限 |
 | `NOT_FOUND` | 组织、聊天或 Agent 不存在 |
 | `RATE_LIMITED` | Provider 限流，应降低频率后再试 |

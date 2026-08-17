@@ -25,35 +25,56 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-function response(body, ok = true, status = 200) {
-  return {ok, status, json: async () => clone(body)};
+const capturedRequests = [];
+const capturedPageExpressions = [];
+
+function pageResponse(body, ok = true, status = 200, retryAfter = null) {
+  return {ok, status, retry_after: retryAfter, body: clone(body)};
 }
 
-function fakeFetch(url, options = {}) {
+function fakePageFetch(url) {
   const parsed = new URL(url);
-  assert.equal(options.headers?.Authorization, "Bearer jwt-fixture");
+  capturedRequests.push(String(url));
   const path = parsed.pathname;
-  if (path === "/api/v1/users/me") return Promise.resolve(response(fixtures.me));
-  if (path === "/api/v1/orgs") return Promise.resolve(response(fixtures.orgs));
-  if (path.endsWith("/projects/task-summary")) return Promise.resolve(response(fixtures.project_summary));
-  if (path.endsWith("/projects")) return Promise.resolve(response(fixtures.projects));
-  if (path.endsWith("/tasks/subtask-summary")) return Promise.resolve(response({data: [{task_id: "tsk_one", done: 1, total: 3}]}));
-  if (path.endsWith("/tasks")) return Promise.resolve(response(fixtures.tasks));
-  if (path.endsWith("/inbox")) return Promise.resolve(response(fixtures.inbox));
-  if (path.endsWith("/chats")) return Promise.resolve(response(fixtures.chats));
-  if (path.endsWith("/messages")) return Promise.resolve(response(fixtures.messages));
-  if (path.endsWith("/members")) return Promise.resolve(response(fixtures.members));
-  if (path.endsWith("/agents")) return Promise.resolve(response(fixtures.agents));
-  if (path.endsWith("/sessions")) return Promise.resolve(response(fixtures.sessions));
-  return Promise.resolve(response({error: "not found"}, false, 404));
+  if (path === "/api/v1/users/me") return pageResponse(fixtures.me);
+  if (path === "/api/v1/orgs") return pageResponse(fixtures.orgs);
+  if (path.endsWith("/projects/task-summary")) return pageResponse(fixtures.project_summary);
+  if (path.endsWith("/projects")) return pageResponse(fixtures.projects);
+  if (path.endsWith("/tasks/subtask-summary")) return pageResponse({data: [{task_id: "tsk_one", done: 1, total: 3}]});
+  if (path.endsWith("/tasks")) return pageResponse(fixtures.tasks);
+  if (path.endsWith("/inbox")) return pageResponse(fixtures.inbox);
+  if (path.endsWith("/chats")) return pageResponse(fixtures.chats);
+  if (path.endsWith("/messages")) return pageResponse(fixtures.messages);
+  if (path.endsWith("/members")) return pageResponse(fixtures.members);
+  if (path.endsWith("/agents")) return pageResponse(fixtures.agents);
+  if (path.endsWith("/sessions")) return pageResponse(fixtures.sessions);
+  return pageResponse({error: "not found"}, false, 404);
 }
 
-async function loadAdapter(name, {token = "jwt-fixture", fetchImpl = fakeFetch} = {}) {
+function fakeBrowser(pageFetchImpl) {
+  return {
+    open: async () => ({
+      waitForSelector: async () => true,
+      eval: async (expression) => {
+        capturedPageExpressions.push(expression);
+        const match = expression.match(/fetch\(("(?:\\.|[^"])*"),\s*\{/s);
+        assert.ok(match, "page request expression must call fetch with an explicit URL");
+        const url = JSON.parse(match[1]);
+        try {
+          return await pageFetchImpl(url);
+        } catch (error) {
+          return {ok: false, status: 0, network_error: String(error?.message || error)};
+        }
+      }
+    })
+  };
+}
+
+async function loadAdapter(name, {pageFetchImpl = fakePageFetch, browserEnabled = true} = {}) {
   const helper = await readFile(join(REPO_ROOT, "parall", "_helper.js"), "utf8");
   const source = await readFile(join(REPO_ROOT, "parall", name + ".js"), "utf8");
   const context = vm.createContext({
-    fetch: fetchImpl,
-    localStorage: {getItem: (key) => key === "parall_access_token" ? token : null},
+    browser: browserEnabled ? fakeBrowser(pageFetchImpl) : undefined,
     console,
     URL,
     URLSearchParams,
@@ -78,6 +99,7 @@ function envelope(command, result, args = {}) {
 }
 
 test("Parall manifest exposes only authenticated read-only commands", () => {
+  assert.equal(manifest.version, "0.1.3");
   const names = Object.keys(manifest.commands).sort();
   assert.deepEqual(names, ["agent-sessions", "agents", "chats", "inbox", "me", "members", "messages", "orgs", "project-summary", "projects", "tasks"]);
   for (const command of Object.values(manifest.commands)) {
@@ -111,6 +133,7 @@ test("Parall me and orgs return bounded session data without exposing email or t
   assert.equal(orgData.count, 2);
   assert.equal(orgData.orgs[0].id, "org_demo");
   assert.equal(orgData.orgs[0].role, "owner");
+  assert.equal(capturedPageExpressions.some((expression) => expression.includes("localStorage") || expression.includes("Authorization")), false);
 });
 
 test("Parall projects, summary, tasks, members and agents require explicit org_id", async () => {
@@ -127,12 +150,17 @@ test("Parall projects, summary, tasks, members and agents require explicit org_i
   assert.equal(envelope("project-summary", summaryResult, {org_id: "org_demo"}).data.workspace_counts.total, 5);
 
   const tasks = await loadAdapter("tasks");
+  capturedRequests.length = 0;
   const taskResult = await tasks({org_id: "org_demo", assignee_id: "usr_me", limit: "10"});
   const taskEnv = envelope("tasks", taskResult, {org_id: "org_demo", assignee_id: "usr_me", limit: "10"});
   assert.equal(taskEnv.completeness, "partial");
   assert.equal(taskEnv.pagination.has_more, true);
   assert.equal(taskEnv.pagination.next_cursor, "task-cursor-secret");
   assert.equal(taskEnv.data.tasks.length, 2);
+  const taskRequest = new URL(capturedRequests[capturedRequests.length - 1]);
+  assert.equal(taskRequest.searchParams.get("parent_id"), "null");
+  assert.equal(taskRequest.searchParams.get("scope"), "active");
+  assert.equal(taskRequest.searchParams.get("limit"), "10");
 
   const members = await loadAdapter("members");
   assert.equal((await members({org_id: "org_demo"})).data.members.length, 2);
@@ -140,37 +168,93 @@ test("Parall projects, summary, tasks, members and agents require explicit org_i
   assert.equal((await agents({org_id: "org_demo"})).data.agents.length, 1);
 });
 
+test("Parall tasks support exact project and opaque cursor filters", async () => {
+  const tasks = await loadAdapter("tasks");
+  capturedRequests.length = 0;
+  const result = await tasks({
+    org_id: "org_demo",
+    project_id: "prj_one",
+    cursor: "task-cursor-secret",
+    scope: "all",
+    status: "todo",
+    priority: "normal",
+    creator_id: "usr_me",
+    label_ids: "lbl_one,lbl_two",
+    order: "desc",
+    limit: "250"
+  });
+  const env = envelope("tasks", result, {org_id: "org_demo"});
+  assert.equal(env.completeness, "partial");
+  assert.equal(env.pagination.limit, 200);
+  assert.equal(env.command.effective_args.project_id, "prj_one");
+  assert.equal(env.command.effective_args.cursor, "task-cursor-secret");
+  assert.equal(env.source.url.includes("task-cursor-secret"), false);
+  const request = new URL(capturedRequests[capturedRequests.length - 1]);
+  assert.equal(request.searchParams.get("project_id"), "prj_one");
+  assert.equal(request.searchParams.get("cursor"), "task-cursor-secret");
+  assert.equal(request.searchParams.get("limit"), "200");
+  assert.equal(request.searchParams.get("scope"), "all");
+  assert.equal(request.searchParams.get("order"), "desc");
+});
+
 test("Parall inbox, chats and messages preserve cursor pagination and redact it from source URL", async () => {
   const inbox = await loadAdapter("inbox");
-  const inboxResult = await inbox({org_id: "org_demo", limit: "10", cursor: "inbox-cursor-secret"});
+  const inboxResult = await inbox({org_id: "org_demo", limit: "10", cursor: "inbox-cursor-secret", type: "mention", read: "false"});
   const inboxEnv = envelope("inbox", inboxResult, {org_id: "org_demo", limit: "10", cursor: "inbox-cursor-secret"});
   assert.equal(inboxEnv.completeness, "partial");
   assert.equal(inboxEnv.pagination.next_cursor, "inbox-cursor-secret");
   assert.equal(inboxEnv.source.url.includes("inbox-cursor-secret"), false);
+  assert.equal(inboxEnv.command.effective_args.type, "mention");
+  assert.equal(inboxEnv.command.effective_args.read, "false");
 
   const chats = await loadAdapter("chats");
-  const chatResult = await chats({org_id: "org_demo", limit: "20"});
-  assert.equal(envelope("chats", chatResult, {org_id: "org_demo", limit: "20"}).data.chats[0].id, "cht_demo");
+  const chatResult = await chats({org_id: "org_demo", limit: "20", cursor: "chat-cursor-secret", scope: "all"});
+  const chatEnv = envelope("chats", chatResult, {org_id: "org_demo", limit: "20"});
+  assert.equal(chatEnv.data.chats[0].id, "cht_demo");
+  assert.equal(chatEnv.command.effective_args.cursor, "chat-cursor-secret");
+  assert.equal(chatEnv.command.effective_args.scope, "all");
 
   const messages = await loadAdapter("messages");
-  const messageResult = await messages({org_id: "org_demo", chat_id: "cht_demo", top_level: "false"});
-  const messageEnv = envelope("messages", messageResult, {org_id: "org_demo", chat_id: "cht_demo", top_level: "false"});
-  assert.equal(messageEnv.command.effective_args.top_level, false);
+  const messageResult = await messages({org_id: "org_demo", chat_id: "cht_demo", before: "message-before-secret", thread_root_id: "msg_root", since: "2026-08-01"});
+  const messageEnv = envelope("messages", messageResult, {org_id: "org_demo", chat_id: "cht_demo"});
+  assert.equal(messageEnv.command.effective_args.before, "message-before-secret");
+  assert.equal(messageEnv.command.effective_args.thread_root_id, "msg_root");
+  assert.equal(messageEnv.source.url.includes("message-before-secret"), false);
   assert.equal(messageEnv.data.messages[0].id, "msg_one");
   assert.equal(messageEnv.pagination.has_more, true);
+
+  const invalid = await messages({org_id: "org_demo", chat_id: "cht_demo", before: "before", after: "after"});
+  assert.equal(invalid.code, "INVALID_ARGUMENT");
 });
 
 test("Parall agent sessions and authentication errors stay structured", async () => {
   const sessions = await loadAdapter("agent-sessions");
-  const result = await sessions({org_id: "org_demo", agent_id: "usr_agent", status: "active"});
+  const result = await sessions({org_id: "org_demo", agent_id: "usr_agent", status: "active", sort: "created_at"});
   const env = envelope("agent-sessions", result, {org_id: "org_demo", agent_id: "usr_agent", status: "active"});
   assert.equal(env.data.sessions[0].status, "active");
   assert.equal(env.completeness, "complete");
 
-  const noSession = await loadAdapter("me", {token: null});
+  const noSession = await loadAdapter("me", {browserEnabled: false});
   assert.equal((await noSession({})).code, "AUTH_REQUIRED");
-  const apiError = await loadAdapter("me", {fetchImpl: async () => response({error: "unauthorized"}, false, 401)});
+  const apiError = await loadAdapter("me", {pageFetchImpl: async () => pageResponse({error: "unauthorized"}, false, 401)});
   assert.equal((await apiError({})).code, "AUTH_REQUIRED");
-  const networkError = await loadAdapter("me", {fetchImpl: async () => { throw new Error("offline"); }});
+  const canonicalError = await loadAdapter("me", {pageFetchImpl: async () => pageResponse({error: {
+    code: "PROJECT_SCOPE_UNAVAILABLE",
+    message: "Project scope unavailable",
+    status: 503,
+    action: "read",
+    resource_uri: "prll://org/org_demo/projects",
+    approvable: false,
+    details: {retry_token: "do-not-expose", reason: "fixture"}
+  }}, false, 503, "4")});
+  const decoded = await canonicalError({});
+  assert.equal(decoded.code, "PROJECT_SCOPE_UNAVAILABLE");
+  assert.equal(decoded.http_status, 503);
+  assert.equal(decoded.action, "read");
+  assert.equal(decoded.resource_uri, "prll://org/org_demo/projects");
+  assert.equal(decoded.approvable, false);
+  assert.equal(decoded.details.retry_token, "[redacted]");
+  assert.equal(decoded.retry_after_seconds, 4);
+  const networkError = await loadAdapter("me", {pageFetchImpl: async () => { throw new Error("offline"); }});
   assert.equal((await networkError({})).code, "NETWORK_ERROR");
 });

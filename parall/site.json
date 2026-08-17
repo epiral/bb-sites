@@ -2,7 +2,7 @@
   "name": "parall",
   "description": "Parall authenticated workspace read-only adapters for organizations, projects, tasks, inbox, chats, messages, members, and agents",
   "domain": "app.parall.com",
-  "version": "0.1.0",
+  "version": "0.1.3",
   "commands": {
     "me": {
       "description": "读取当前 Parall session 的用户摘要",
@@ -69,10 +69,19 @@
       "envelope_versions": ["pinix.site-result-envelope.v1"],
       "params": {
         "org_id": {"type": "string", "required": true, "description": "组织 ID，来自 parall orgs"},
+        "q": {"type": "string", "required": false, "description": "可选文本查询"},
+        "status": {"type": "string", "required": false, "description": "可选状态过滤"},
+        "priority": {"type": "string", "required": false, "description": "可选优先级过滤"},
         "assignee_id": {"type": "string", "required": false, "description": "可选被分配人 ID"},
+        "creator_id": {"type": "string", "required": false, "description": "可选创建人 ID"},
         "parent_id": {"type": "string", "required": false, "description": "可选父任务 ID；默认读取顶层任务"},
-        "limit": {"type": "number", "required": false, "description": "条数，默认 100，上限 100"},
-        "sort": {"type": "string", "required": false, "description": "排序字段，默认 created_at"}
+        "project_id": {"type": "string", "required": false, "description": "可选项目 ID"},
+        "label_ids": {"type": "string", "required": false, "description": "逗号分隔的标签 ID"},
+        "scope": {"type": "string", "required": false, "description": "任务范围：active、archived 或 all；默认 active"},
+        "limit": {"type": "number", "required": false, "description": "条数，默认 50，上限 200"},
+        "cursor": {"type": "string", "required": false, "description": "上一页返回的 opaque next_cursor"},
+        "sort": {"type": "string", "required": false, "description": "排序字段，默认 created_at"},
+        "order": {"type": "string", "required": false, "description": "可选排序方向"}
       }
     },
     "inbox": {
@@ -88,8 +97,10 @@
       "envelope_versions": ["pinix.site-result-envelope.v1"],
       "params": {
         "org_id": {"type": "string", "required": true, "description": "组织 ID，来自 parall orgs"},
-        "limit": {"type": "number", "required": false, "description": "条数，默认 100，上限 100"},
-        "cursor": {"type": "string", "required": false, "description": "上一页返回的 next_cursor"}
+        "limit": {"type": "number", "required": false, "description": "条数，默认 50，adapter 上限 100"},
+        "cursor": {"type": "string", "required": false, "description": "上一页返回的 next_cursor"},
+        "type": {"type": "string", "required": false, "description": "逗号分隔的通知类型"},
+        "read": {"type": "string", "required": false, "description": "true 选择已读；传入其他值选择未读"}
       }
     },
     "chats": {
@@ -105,7 +116,9 @@
       "envelope_versions": ["pinix.site-result-envelope.v1"],
       "params": {
         "org_id": {"type": "string", "required": true, "description": "组织 ID，来自 parall orgs"},
-        "limit": {"type": "number", "required": false, "description": "条数，默认 200，上限 200"}
+        "limit": {"type": "number", "required": false, "description": "条数，默认 50，上限 200"},
+        "cursor": {"type": "string", "required": false, "description": "上一页返回的 next_cursor"},
+        "scope": {"type": "string", "required": false, "description": "聊天范围：active、archived 或 all；默认 active"}
       }
     },
     "messages": {
@@ -122,9 +135,12 @@
       "params": {
         "org_id": {"type": "string", "required": true, "description": "组织 ID，来自 parall orgs"},
         "chat_id": {"type": "string", "required": true, "description": "聊天 ID，来自 parall chats"},
-        "limit": {"type": "number", "required": false, "description": "条数，默认 50，上限 50"},
-        "cursor": {"type": "string", "required": false, "description": "上一页返回的 next_cursor"},
-        "top_level": {"type": "boolean", "required": false, "description": "是否只读取顶层消息，默认 true"}
+        "limit": {"type": "number", "required": false, "description": "条数，默认 50，上限 200"},
+        "cursor": {"type": "string", "required": false, "description": "legacy before cursor；opaque"},
+        "before": {"type": "string", "required": false, "description": "opaque before cursor，与 after 互斥"},
+        "after": {"type": "string", "required": false, "description": "opaque after cursor，与 before/cursor 互斥"},
+        "thread_root_id": {"type": "string", "required": false, "description": "可选 thread root message ID"},
+        "since": {"type": "string", "required": false, "description": "可选时间戳/日期过滤"}
       }
     },
     "members": {
@@ -168,8 +184,9 @@
         "org_id": {"type": "string", "required": true, "description": "组织 ID，来自 parall orgs"},
         "agent_id": {"type": "string", "required": true, "description": "Agent 用户 ID，来自 parall agents"},
         "status": {"type": "string", "required": false, "description": "会话状态，默认 open,active,idle"},
-        "limit": {"type": "number", "required": false, "description": "条数，默认 50，上限 50"},
-        "cursor": {"type": "string", "required": false, "description": "上一页返回的 next_cursor"}
+        "limit": {"type": "number", "required": false, "description": "条数，默认 20，上限 100"},
+        "cursor": {"type": "string", "required": false, "description": "上一页返回的 next_cursor"},
+        "sort": {"type": "string", "required": false, "description": "可选排序字段；具体值由 Server 控制"}
       }
     }
   }
