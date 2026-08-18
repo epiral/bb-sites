@@ -107,6 +107,7 @@ function parallWarnings(extra = []) {
   return [
     {code: 'PRIVATE_WORKSPACE_DATA', message: 'Parall data is scoped to the authenticated workspace and is not public web evidence.'},
     {code: 'PROFILE_NOT_IDENTITY', message: 'The browser profile selects a session but does not independently prove the account identity.'},
+    {code: 'PAGE_BEARER_SESSION', message: 'The Parall access token was read and used only inside the page renderer; no credential value was returned to the adapter runtime.'},
     ...extra
   ];
 }
@@ -144,7 +145,7 @@ function parallInvalidResponse(expected) {
 
 async function parallGet(path) {
   if (typeof browser === 'undefined' || typeof browser.open !== 'function') {
-    return {ok: false, result: parallError('Parall page session is not available', 'Run this command with a signed-in Parall browser profile. The adapter does not read JWTs from browser storage.', 'AUTH_REQUIRED')};
+    return {ok: false, result: parallError('Parall page session is not available', 'Run this command with a signed-in Parall browser profile. Page credentials are used only inside the renderer.', 'AUTH_REQUIRED')};
   }
 
   let tab;
@@ -155,30 +156,90 @@ async function parallGet(path) {
       return {ok: false, result: parallError('Parall page session cannot issue requests', 'The selected Edge does not expose a page request surface.', 'EDGE_ERROR')};
     }
 
-    const url = PARALL_API_BASE + path;
     const response = await tab.eval(`(async () => {
+      const targetPath = ${JSON.stringify(path)};
+      const appToApiOrigin = {
+        "https://app.parall.com": "https://api.parall.com",
+        "https://app.staging.prll.sh": "https://api.staging.prll.sh"
+      };
+      const apiOrigin = appToApiOrigin[location.origin] || null;
+      if (!apiOrigin) {
+        return {ok: false, status: 0, bridge_error: "UNSUPPORTED_PARALL_APP_ORIGIN"};
+      }
+      if (!targetPath.startsWith("/") || targetPath.startsWith("//") || targetPath.includes("#")) {
+        return {ok: false, status: 0, bridge_error: "INVALID_PARALL_API_PATH"};
+      }
+
+      if (typeof window.fetch !== "function") {
+        return {ok: false, status: 0, bridge_error: "FRONTEND_FETCH_UNAVAILABLE"};
+      }
+
+      let accessToken = null;
       try {
-        const response = await fetch(${JSON.stringify(url)}, {method: 'GET', credentials: 'include', headers: {Accept: 'application/json'}});
+        try {
+          accessToken = window.localStorage?.getItem("parall_access_token") || null;
+        } catch {
+          return {ok: false, status: 0, bridge_error: "PAGE_CREDENTIAL_STORAGE_UNAVAILABLE", api_origin: apiOrigin};
+        }
+        if (!accessToken) {
+          return {ok: false, status: 0, bridge_error: "PAGE_ACCESS_TOKEN_NOT_FOUND", api_origin: apiOrigin};
+        }
+
+        const requestUrl = new URL(apiOrigin + "/api/v1" + targetPath);
+        if (requestUrl.origin !== apiOrigin || !requestUrl.pathname.startsWith("/api/v1/")) {
+          return {ok: false, status: 0, bridge_error: "INVALID_PARALL_API_PATH"};
+        }
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15000);
+        let response;
+        try {
+          response = await window.fetch(requestUrl.toString(), {
+            method: "GET",
+            headers: {Accept: "application/json", Authorization: "Bearer " + accessToken},
+            credentials: "omit",
+            redirect: "error",
+            signal: controller.signal
+          });
+        } finally {
+          clearTimeout(timeout);
+        }
         const contentType = response.headers.get('content-type') || '';
         let body = null;
         try { body = contentType.includes('json') ? await response.json() : await response.text(); } catch {}
-        return {ok: response.ok, status: response.status, retry_after: response.headers.get('Retry-After'), body};
-      } catch (error) {
-        return {ok: false, status: 0, network_error: String(error?.message || error)};
+        return {
+          ok: response.ok,
+          status: response.status,
+          retry_after: response.headers.get('Retry-After'),
+          body,
+          api_origin: apiOrigin,
+          auth_mode: "page_renderer_bearer"
+        };
+      } catch {
+        return {ok: false, status: 0, network_error: "page_request_failed"};
+      } finally {
+        accessToken = null;
       }
     })()`);
 
     if (!response || typeof response !== 'object') {
       return {ok: false, result: parallError('Parall page request returned no response', 'The page session did not return a structured HTTP response.', 'EDGE_ERROR')};
     }
+    if (response.bridge_error === 'PAGE_ACCESS_TOKEN_NOT_FOUND' || response.bridge_error === 'PAGE_CREDENTIAL_STORAGE_UNAVAILABLE') {
+      return {ok: false, result: parallError('Parall page credentials are unavailable', 'Open Parall with the selected browser profile and sign in before retrying.', 'AUTH_REQUIRED')};
+    }
+    if (response.bridge_error) {
+      return {ok: false, result: parallError('Parall frontend request bridge is unavailable', 'The selected page origin or runtime cannot provide the bounded frontend GET reuse path.', 'EDGE_ERROR', {bridge_error: response.bridge_error})};
+    }
     if (response.status === 0 || response.network_error) {
       return {ok: false, result: parallError('Parall API request failed in page session', 'The page-session request failed; do not treat this as an empty workspace.', 'NETWORK_ERROR')};
     }
     const headers = {get: (name) => String(name).toLowerCase() === 'retry-after' ? response.retry_after : null};
     if (!response.ok) return {ok: false, result: parallErrorFromResponse(response.status, response.body, headers)};
-    return {ok: true, body: response.body};
+    return {ok: true, body: response.body, apiOrigin: response.api_origin, authMode: response.auth_mode};
   } catch {
     return {ok: false, result: parallError('Parall page session could not be opened', 'The Edge page was not ready or disconnected; this is not an empty result.', 'EDGE_ERROR')};
+  } finally {
+    try { if (tab?.close) await tab.close(); } catch {}
   }
 }
 

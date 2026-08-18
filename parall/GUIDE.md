@@ -29,9 +29,9 @@ $PINIX site parall tasks --help --json
 $PINIX --edge "$EDGE" site parall orgs --profile "$PROFILE" --envelope v1
 ```
 
-Adapter 在 `app.parall.com` 页面上下文发起 `credentials=include` 的 GET 请求，API origin 是 Adapter 的显式配置，不由 Pinix 推断。Adapter 不读取 localStorage、cookie 或 JWT，也不把凭证送入 Node VM、connector、日志或结果。
+Adapter 在 `app.parall.com` 页面 renderer 内读取该 origin 的 `parall_access_token`，并在同一 renderer 内发起显式配置 API origin 的 GET 请求。Token 只用于构造本次 `Authorization: Bearer` Header；Adapter 只接收 API response，不返回或记录 token，也不读取 refresh token、cookie 或其他凭据。
 
-若目标 API 只接受 Bearer，页面 session 请求会返回 `AUTH_REQUIRED` 并停止。当前没有受支持的 Human JWT bridge；不要从浏览器存储提取凭证来绕过这个边界。
+请求固定为 GET-only、无 body、`credentials=omit`、`redirect=error` 和有限超时。若所选 profile 未登录、页面 credential storage 不可读或 access token 被 Server 拒绝，则返回 `AUTH_REQUIRED`；Adapter 不自行刷新 token。
 
 ## 基本工作流
 
@@ -170,7 +170,7 @@ $PINIX --edge "$EDGE" site parall tasks \
 |---|---|
 | `INVALID_ARGUMENT` | 修正缺失/格式错误参数后再执行 |
 | `INVALID_RESPONSE` | Server 成功响应与 source-exact DTO 不符；不能当 empty |
-| `AUTH_REQUIRED` | 页面 session 无法授权；不要提取 JWT 或自行补 bridge |
+| `AUTH_REQUIRED` | 所选 profile 未登录、页面 token 不可读或被 Server 拒绝；先在 Parall 页面重新登录 |
 | `FORBIDDEN` | 当前 principal 无资源权限 |
 | `NOT_FOUND` | 资源缺失，或 Server 为防枚举隐藏不可读资源 |
 | `RATE_LIMITED` | 遵守 `Retry-After` 节奏；它不是通用重试授权 |
@@ -187,4 +187,4 @@ Server canonical error 是 `{error:{code,message,status,action?,resource_uri?,ap
 - source URL 去除 userinfo、fragment，以及 cursor/before/after/query/credential 类参数。
 - Agent instructions 是 no-store 数据；Session/Step 可能是治理级或 context-redacted 投影，应按 warnings 最小化保留和传播。
 - 该 source map 不证明 production/staging 的部署 commit、feature flag、用户角色或 grant。
-- 当前未提供受支持的 bearer-only Human API session。出现 `AUTH_REQUIRED` 时必须停止并路由安全 credential integration 设计，不能在 Adapter 内读取浏览器 JWT。
+- Bearer token 只在页面 renderer 内读取和使用；不得通过 `tab.eval` 返回值、日志、错误、fixture 或 envelope 输出凭据。

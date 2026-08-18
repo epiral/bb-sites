@@ -27,6 +27,10 @@ function clone(value) {
 
 const capturedRequests = [];
 const capturedPageExpressions = [];
+const capturedAuthorization = [];
+const pageStorageReads = [];
+const openedTabs = [];
+const closedTabs = [];
 
 function pageResponse(body, ok = true, status = 200, retryAfter = null) {
   return {ok, status, retry_after: retryAfter, body: clone(body)};
@@ -86,30 +90,78 @@ function fakePageFetch(url) {
   return pageResponse({error: "not found"}, false, 404);
 }
 
-function fakeBrowser(pageFetchImpl) {
+async function executePageRequest(expression, pageFetchImpl, accessToken) {
+  const originalFetch = async (input, init = {}) => {
+    capturedAuthorization.push(new Headers(init.headers || {}).get("Authorization"));
+    assert.equal(init.method, "GET");
+    assert.equal(init.credentials, "omit");
+    assert.equal(init.redirect, "error");
+    const result = await pageFetchImpl(String(input));
+    const body = clone(result.body);
+    return {
+      ok: result.ok,
+      status: result.status,
+      headers: {
+        get: (name) => {
+          const lower = String(name).toLowerCase();
+          if (lower === "content-type") return "application/json";
+          if (lower === "retry-after") return result.retry_after;
+          return null;
+        }
+      },
+      json: async () => clone(body),
+      text: async () => JSON.stringify(body)
+    };
+  };
+  const pageWindow = {
+    fetch: originalFetch,
+    localStorage: {
+      getItem: (key) => {
+        pageStorageReads.push(key);
+        return key === "parall_access_token" ? accessToken : null;
+      }
+    }
+  };
+  return vm.runInNewContext(expression, {
+    window: pageWindow,
+    location: {origin: "https://app.parall.com", href: "https://app.parall.com/"},
+    URL,
+    AbortController,
+    setTimeout,
+    clearTimeout
+  });
+}
+
+function fakeBrowser(pageFetchImpl, executeBridge = false, pageAccessToken = "fixture-only-secret") {
   return {
-    open: async () => ({
+    open: async (url, options = {}) => {
+      const tabNumber = openedTabs.length + 1;
+      openedTabs.push({url, options});
+      return {
       waitForSelector: async () => true,
       eval: async (expression) => {
         capturedPageExpressions.push(expression);
-        const match = expression.match(/fetch\(("(?:\\.|[^"])*"),\s*\{/s);
-        assert.ok(match, "page request expression must call fetch with an explicit URL");
-        const url = JSON.parse(match[1]);
+        if (executeBridge) return executePageRequest(expression, pageFetchImpl, pageAccessToken);
+        const match = expression.match(/const targetPath = ("(?:\\.|[^"])*");/s);
+        assert.ok(match, "page request expression must contain an explicit relative API path");
+        const targetPath = JSON.parse(match[1]);
         try {
-          return await pageFetchImpl(url);
+          return await pageFetchImpl("https://api.parall.com/api/v1" + targetPath);
         } catch (error) {
           return {ok: false, status: 0, network_error: String(error?.message || error)};
         }
-      }
-    })
+      },
+      close: async () => { closedTabs.push(tabNumber); }
+    };
+    }
   };
 }
 
-async function loadAdapter(name, {pageFetchImpl = fakePageFetch, browserEnabled = true} = {}) {
+async function loadAdapter(name, {pageFetchImpl = fakePageFetch, browserEnabled = true, executeBridge = false, pageAccessToken = "fixture-only-secret"} = {}) {
   const helper = await readFile(join(REPO_ROOT, "parall", "_helper.js"), "utf8");
   const source = await readFile(join(REPO_ROOT, "parall", name + ".js"), "utf8");
   const context = vm.createContext({
-    browser: browserEnabled ? fakeBrowser(pageFetchImpl) : undefined,
+    browser: browserEnabled ? fakeBrowser(pageFetchImpl, executeBridge, pageAccessToken) : undefined,
     console,
     URL,
     URLSearchParams,
@@ -172,6 +224,9 @@ test("Parall manifest exposes the complete Web workspace read-only surface", asy
 });
 
 test("Parall me and orgs return bounded session data without exposing email or token", async () => {
+  openedTabs.length = 0;
+  closedTabs.length = 0;
+  capturedPageExpressions.length = 0;
   const me = await loadAdapter("me");
   const meResult = await me({});
   const meData = unwrapSiteAdapterCarrier(meResult, manifest.commands.me);
@@ -188,7 +243,25 @@ test("Parall me and orgs return bounded session data without exposing email or t
   assert.equal(orgData.count, 2);
   assert.equal(orgData.orgs[0].id, "org_demo");
   assert.equal(orgData.orgs[0].role, "owner");
-  assert.equal(capturedPageExpressions.some((expression) => expression.includes("localStorage") || expression.includes("Authorization")), false);
+  assert.equal(capturedPageExpressions.every((expression) => expression.includes('window.localStorage?.getItem("parall_access_token")')), true);
+  assert.equal(capturedPageExpressions.some((expression) => expression.includes("parall_refresh_token")), false);
+  assert.equal(capturedPageExpressions.every((expression) => expression.includes('credentials: "omit"') && expression.includes('redirect: "error"')), true);
+  assert.equal(openedTabs.every((tab) => tab.url === "https://app.parall.com/"), true);
+  assert.equal(closedTabs.length, openedTabs.length);
+});
+
+test("Parall page request keeps the access token inside the renderer", async () => {
+  capturedRequests.length = 0;
+  capturedAuthorization.length = 0;
+  pageStorageReads.length = 0;
+  const projects = await loadAdapter("projects", {executeBridge: true});
+  const result = await projects({org_id: "org_demo"});
+  const data = unwrapSiteAdapterCarrier(result, manifest.commands.projects);
+  assert.equal(data.count, 2);
+  assert.deepEqual(capturedRequests.slice(-1).map((url) => new URL(url).pathname), ["/api/v1/orgs/org_demo/projects"]);
+  assert.deepEqual(capturedAuthorization, ["Bearer fixture-only-secret"]);
+  assert.deepEqual(pageStorageReads, ["parall_access_token"]);
+  assert.equal(JSON.stringify(result).includes("fixture-only-secret"), false);
 });
 
 test("Parall projects, summary, tasks, members and agents require explicit org_id", async () => {
@@ -396,6 +469,12 @@ test("Parall agent sessions and authentication errors stay structured", async ()
 
   const noSession = await loadAdapter("me", {browserEnabled: false});
   assert.equal((await noSession({})).code, "AUTH_REQUIRED");
+  const noPageToken = await loadAdapter("me", {executeBridge: true, pageAccessToken: null});
+  assert.equal((await noPageToken({})).code, "AUTH_REQUIRED");
+  const unavailableStorage = await loadAdapter("me", {pageFetchImpl: async () => ({ok: false, status: 0, bridge_error: "PAGE_CREDENTIAL_STORAGE_UNAVAILABLE"})});
+  assert.equal((await unavailableStorage({})).code, "AUTH_REQUIRED");
+  const unsupportedOrigin = await loadAdapter("me", {pageFetchImpl: async () => ({ok: false, status: 0, bridge_error: "UNSUPPORTED_PARALL_APP_ORIGIN"})});
+  assert.equal((await unsupportedOrigin({})).code, "EDGE_ERROR");
   const apiError = await loadAdapter("me", {pageFetchImpl: async () => pageResponse({error: "unauthorized"}, false, 401)});
   assert.equal((await apiError({})).code, "AUTH_REQUIRED");
   const canonicalError = await loadAdapter("me", {pageFetchImpl: async () => pageResponse({error: {
