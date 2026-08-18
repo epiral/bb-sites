@@ -36,6 +36,68 @@ function parallOpaqueId(value, name) {
   return {value: id};
 }
 
+function parallHasArg(args, name) {
+  return Object.prototype.hasOwnProperty.call(args || {}, name);
+}
+
+function parallConfirmWrite(args) {
+  if (parallString(args?.confirm).toLowerCase() !== 'write') {
+    return {error: parallError('Write confirmation required', 'Pass --confirm write after reviewing the target Edge, profile, organization, resource IDs, and requested changes.', 'CONFIRMATION_REQUIRED', {reason: 'invalid_args', completeness: 'unknown'})};
+  }
+  return {value: 'write'};
+}
+
+function parallTrueFlag(args, name) {
+  if (!parallHasArg(args, name)) return {value: false};
+  if (args[name] === true || parallString(args[name]).toLowerCase() === 'true') return {value: true};
+  return {error: parallError('Invalid argument: ' + name, 'Pass --' + name + ' true or omit the flag.', 'INVALID_ARGUMENT')};
+}
+
+function parallEnum(value, allowed, name) {
+  const normalized = parallString(value);
+  if (!allowed.includes(normalized)) {
+    return {error: parallError('Invalid argument: ' + name, 'Allowed values: ' + allowed.join(', ') + '.', 'INVALID_ARGUMENT')};
+  }
+  return {value: normalized};
+}
+
+function parallDate(value, name) {
+  const normalized = parallString(value);
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(normalized);
+  if (!match) {
+    return {error: parallError('Invalid argument: ' + name, 'Use an exact calendar date in YYYY-MM-DD format.', 'INVALID_ARGUMENT')};
+  }
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  if (date.getUTCFullYear() !== Number(match[1]) || date.getUTCMonth() !== Number(match[2]) - 1 || date.getUTCDate() !== Number(match[3])) {
+    return {error: parallError('Invalid argument: ' + name, 'Use a real calendar date in YYYY-MM-DD format.', 'INVALID_ARGUMENT')};
+  }
+  return {value: normalized};
+}
+
+function parallUtf8Length(value) {
+  let bytes = 0;
+  const text = String(value);
+  for (let index = 0; index < text.length; index += 1) {
+    const code = text.charCodeAt(index);
+    if (code < 0x80) bytes += 1;
+    else if (code < 0x800) bytes += 2;
+    else if (code >= 0xD800 && code <= 0xDBFF && index + 1 < text.length && text.charCodeAt(index + 1) >= 0xDC00 && text.charCodeAt(index + 1) <= 0xDFFF) {
+      bytes += 4;
+      index += 1;
+    } else bytes += 3;
+  }
+  return bytes;
+}
+
+function parallLabelIds(value) {
+  const raw = parallString(value);
+  const ids = [...new Set(raw.split(',').map((item) => item.trim()).filter(Boolean))];
+  if (!ids.length || ids.some((id) => !/^lbl_[A-Za-z0-9]+$/.test(id))) {
+    return {error: parallError('Invalid argument: label_ids', 'Provide one or more comma-separated lbl_ IDs, or use --clear_labels true.', 'INVALID_ARGUMENT')};
+  }
+  return {value: ids};
+}
+
 function parallLimit(value, fallback, maximum) {
   const parsed = Number.parseInt(value, 10);
   return Math.min(Math.max(Number.isFinite(parsed) ? parsed : fallback, 1), maximum);
@@ -65,12 +127,13 @@ function parallSafeValue(value, depth = 0) {
   return output;
 }
 
-function parallErrorFromResponse(status, body, headers) {
+function parallErrorFromResponse(status, body, headers, write = false) {
   const nested = body && typeof body.error === 'object' && !Array.isArray(body.error) ? body.error : {};
   const legacyMessage = typeof body?.error === 'string' ? body.error : null;
   const code = typeof nested.code === 'string' ? nested.code : status === 401 ? 'AUTH_REQUIRED' : status === 403 ? 'FORBIDDEN' : status === 404 ? 'NOT_FOUND' : status === 409 ? 'CONFLICT' : status === 422 ? 'UNPROCESSABLE' : status === 429 ? 'RATE_LIMITED' : status >= 500 ? 'UPSTREAM_ERROR' : 'API_ERROR';
   const message = typeof nested.message === 'string' ? nested.message : legacyMessage || 'Parall API returned HTTP ' + status;
-  const hint = status === 401 ? 'The Parall page session could not authorize this API request. Do not extract a JWT; use a supported page-session route or an approved bridge.' : status === 403 ? 'The selected principal may not have access to this resource.' : status === 429 ? 'Respect Retry-After and reduce request frequency; it is pacing guidance, not retry authorization.' : 'Parall returned an authenticated API error.';
+  let hint = status === 401 ? 'The Parall page session could not authorize this API request. Do not extract a JWT; use the supported renderer session path.' : status === 403 ? 'The selected principal may not have access to this resource.' : status === 429 ? 'Respect Retry-After and reduce request frequency; it is pacing guidance, not retry authorization.' : 'Parall returned an authenticated API error.';
+  if (write) hint += ' Do not automatically retry a write; inspect the target resource first.';
   const extra = {http_status: status};
   if (typeof nested.action === 'string') extra.action = nested.action;
   if (typeof nested.resource_uri === 'string' && nested.resource_uri.startsWith('prll://')) extra.resource_uri = nested.resource_uri;
@@ -143,12 +206,72 @@ function parallInvalidResponse(expected) {
   return parallError('Invalid Parall API response', 'Expected ' + expected + '; do not treat a malformed success response as empty.', 'INVALID_RESPONSE');
 }
 
-async function parallGet(path) {
+function parallWritePathAllowed(path, method) {
+  const rawPath = String(path || '');
+  if (rawPath.includes('?')) return false;
+  const pathname = rawPath;
+  const org = 'org_[A-Za-z0-9_]+';
+  const task = 'tsk_[A-Za-z0-9_]+';
+  if (method === 'PATCH') return new RegExp('^/orgs/' + org + '/tasks/' + task + '$').test(pathname);
+  if (method === 'POST') {
+    return new RegExp('^/orgs/' + org + '/tasks$').test(pathname)
+      || new RegExp('^/orgs/' + org + '/comments$').test(pathname);
+  }
+  return false;
+}
+
+function parallOutcomeUnknown(message) {
+  return parallError(message, 'The write may have reached Parall. Do not retry automatically; read the target resource and confirm its state manually.', 'OUTCOME_UNKNOWN', {
+    reason: 'outcome_unknown',
+    completeness: 'unknown',
+    outcome: 'unknown',
+    manual_verification_required: true,
+    details: {outcome: 'unknown', manual_verification_required: true}
+  });
+}
+
+function parallThrow(error) {
+  const value = error && typeof error === 'object' ? error : parallError(String(error || 'Parall Adapter error'), 'Inspect the command inputs and provider state.', 'SITE_ADAPTER_ERROR');
+  const thrown = new Error(value.error || value.message || 'Parall Adapter error');
+  thrown.code = value.code || 'SITE_ADAPTER_ERROR';
+  if (value.hint) thrown.hint = value.hint;
+  if (value.reason) thrown.reason = value.reason;
+  if (value.completeness) thrown.completeness = value.completeness;
+  const details = value.details && typeof value.details === 'object' && !Array.isArray(value.details)
+    ? {...value.details}
+    : {};
+  for (const key of ['http_status', 'action', 'resource_uri', 'approvable', 'retry_after_seconds', 'outcome', 'manual_verification_required', 'bridge_error']) {
+    if (value[key] !== undefined) details[key] = parallSafeValue(value[key]);
+  }
+  if (Object.keys(details).length) thrown.details = details;
+  throw thrown;
+}
+
+async function parallRequest(path, options = {}) {
+  const method = parallString(options.method || 'GET').toUpperCase();
+  const write = method !== 'GET';
+  if (method !== 'GET' && !parallWritePathAllowed(path, method)) {
+    return {ok: false, result: parallError('Parall write path is not allowed', 'This Adapter only permits the declared Task PATCH, Subtask POST, and Task comment POST routes.', 'WRITE_PATH_NOT_ALLOWED')};
+  }
+  if (method === 'GET' && options.body !== undefined) {
+    return {ok: false, result: parallError('GET request body is not allowed', 'Read commands never send a request body.', 'INVALID_ARGUMENT')};
+  }
+  let serializedBody = null;
+  if (write) {
+    if (!options.body || typeof options.body !== 'object' || Array.isArray(options.body)) {
+      return {ok: false, result: parallError('Write request body is required', 'Provide a bounded JSON object for this write command.', 'INVALID_ARGUMENT')};
+    }
+    serializedBody = JSON.stringify(options.body);
+    if (serializedBody.length > 131072) {
+      return {ok: false, result: parallError('Write request body is too large', 'Keep the serialized request body at or below 128 KiB.', 'INVALID_ARGUMENT')};
+    }
+  }
   if (typeof browser === 'undefined' || typeof browser.open !== 'function') {
     return {ok: false, result: parallError('Parall page session is not available', 'Run this command with a signed-in Parall browser profile. Page credentials are used only inside the renderer.', 'AUTH_REQUIRED')};
   }
 
   let tab;
+  let requestAttempted = false;
   try {
     tab = await browser.open(PARALL_APP_URL);
     if (tab.waitForSelector) await tab.waitForSelector('body', 10000);
@@ -156,8 +279,11 @@ async function parallGet(path) {
       return {ok: false, result: parallError('Parall page session cannot issue requests', 'The selected Edge does not expose a page request surface.', 'EDGE_ERROR')};
     }
 
+    requestAttempted = true;
     const response = await tab.eval(`(async () => {
       const targetPath = ${JSON.stringify(path)};
+      const requestMethod = ${JSON.stringify(method)};
+      const requestBody = ${JSON.stringify(serializedBody)};
       const appToApiOrigin = {
         "https://app.parall.com": "https://api.parall.com",
         "https://app.staging.prll.sh": "https://api.staging.prll.sh"
@@ -169,6 +295,16 @@ async function parallGet(path) {
       if (!targetPath.startsWith("/") || targetPath.startsWith("//") || targetPath.includes("#")) {
         return {ok: false, status: 0, bridge_error: "INVALID_PARALL_API_PATH"};
       }
+      const writePathAllowed = (pathname, method) => {
+        const org = "org_[A-Za-z0-9_]+";
+        const task = "tsk_[A-Za-z0-9_]+";
+        if (method === "PATCH") return new RegExp("^/api/v1/orgs/" + org + "/tasks/" + task + "$").test(pathname);
+        if (method === "POST") {
+          return new RegExp("^/api/v1/orgs/" + org + "/tasks$").test(pathname)
+            || new RegExp("^/api/v1/orgs/" + org + "/comments$").test(pathname);
+        }
+        return false;
+      };
 
       if (typeof window.fetch !== "function") {
         return {ok: false, status: 0, bridge_error: "FRONTEND_FETCH_UNAVAILABLE"};
@@ -189,13 +325,22 @@ async function parallGet(path) {
         if (requestUrl.origin !== apiOrigin || !requestUrl.pathname.startsWith("/api/v1/")) {
           return {ok: false, status: 0, bridge_error: "INVALID_PARALL_API_PATH"};
         }
+        if (requestMethod !== "GET" && !writePathAllowed(requestUrl.pathname, requestMethod)) {
+          return {ok: false, status: 0, bridge_error: "WRITE_PATH_NOT_ALLOWED"};
+        }
+        if (requestMethod === "GET" && requestBody !== null) {
+          return {ok: false, status: 0, bridge_error: "GET_BODY_NOT_ALLOWED"};
+        }
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 15000);
         let response;
         try {
+          const headers = {Accept: "application/json", Authorization: "Bearer " + accessToken};
+          if (requestBody !== null) headers["Content-Type"] = "application/json";
           response = await window.fetch(requestUrl.toString(), {
-            method: "GET",
-            headers: {Accept: "application/json", Authorization: "Bearer " + accessToken},
+            method: requestMethod,
+            headers,
+            ...(requestBody !== null ? {body: requestBody} : {}),
             credentials: "omit",
             redirect: "error",
             signal: controller.signal
@@ -222,25 +367,83 @@ async function parallGet(path) {
     })()`);
 
     if (!response || typeof response !== 'object') {
+      if (write && requestAttempted) return {ok: false, result: parallOutcomeUnknown('Parall write returned no structured response')};
       return {ok: false, result: parallError('Parall page request returned no response', 'The page session did not return a structured HTTP response.', 'EDGE_ERROR')};
     }
     if (response.bridge_error === 'PAGE_ACCESS_TOKEN_NOT_FOUND' || response.bridge_error === 'PAGE_CREDENTIAL_STORAGE_UNAVAILABLE') {
       return {ok: false, result: parallError('Parall page credentials are unavailable', 'Open Parall with the selected browser profile and sign in before retrying.', 'AUTH_REQUIRED')};
     }
     if (response.bridge_error) {
-      return {ok: false, result: parallError('Parall frontend request bridge is unavailable', 'The selected page origin or runtime cannot provide the bounded frontend GET reuse path.', 'EDGE_ERROR', {bridge_error: response.bridge_error})};
+      return {ok: false, result: parallError('Parall frontend request bridge is unavailable', 'The selected page origin or runtime cannot provide the bounded frontend request path.', 'EDGE_ERROR', {bridge_error: response.bridge_error})};
     }
     if (response.status === 0 || response.network_error) {
+      if (write) return {ok: false, result: parallOutcomeUnknown('Parall write did not return an HTTP response')};
       return {ok: false, result: parallError('Parall API request failed in page session', 'The page-session request failed; do not treat this as an empty workspace.', 'NETWORK_ERROR')};
     }
     const headers = {get: (name) => String(name).toLowerCase() === 'retry-after' ? response.retry_after : null};
-    if (!response.ok) return {ok: false, result: parallErrorFromResponse(response.status, response.body, headers)};
-    return {ok: true, body: response.body, apiOrigin: response.api_origin, authMode: response.auth_mode};
+    if (!response.ok) return {ok: false, result: parallErrorFromResponse(response.status, response.body, headers, write)};
+    return {ok: true, body: response.body, status: response.status, apiOrigin: response.api_origin, authMode: response.auth_mode};
   } catch {
+    if (write && requestAttempted) return {ok: false, result: parallOutcomeUnknown('Parall write was interrupted before confirmation')};
     return {ok: false, result: parallError('Parall page session could not be opened', 'The Edge page was not ready or disconnected; this is not an empty result.', 'EDGE_ERROR')};
   } finally {
     try { if (tab?.close) await tab.close(); } catch {}
   }
+}
+
+async function parallGet(path) {
+  return parallRequest(path, {method: 'GET'});
+}
+
+async function parallWrite(path, method, body) {
+  return parallRequest(path, {method, body});
+}
+
+function parallMutationObjectResult({data, orgId, dataKey, args, path, method, status, resourceId, extraWarnings = []}) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return parallOutcomeUnknown('Parall write returned an invalid success response');
+  }
+  const observedAt = new Date().toISOString();
+  const safe = parallSafeValue(data);
+  return parallCarrier({
+    org_id: orgId,
+    [dataKey]: safe,
+    observed_at: observedAt
+  }, {
+    effective_args: args,
+    completeness: 'complete',
+    reason: 'mutation_confirmed',
+    source: {url: parallSafeSource(path)},
+    pagination: {supported: false, returned: 1},
+    auth: parallAuth(),
+    warnings: parallWarnings([
+      {code: 'WRITE_SIDE_EFFECT', message: 'This command changed Parall workspace data using the explicitly selected browser profile.'},
+      {code: 'NO_AUTOMATIC_RETRY', message: 'Parall Task writes do not expose a general idempotency key. Never automatically replay this command after timeout, disconnect, or outcome_unknown.'},
+      ...extraWarnings
+    ]),
+    receipts: [{
+      type: 'parall_api_mutation',
+      status: 'succeeded',
+      method,
+      http_status: status,
+      ...(resourceId ? {resource_id: resourceId} : {}),
+      observed_at: observedAt
+    }]
+  });
+}
+
+function parallTaskMutationMatches(task, body) {
+  if (!task || typeof task !== 'object' || Array.isArray(task)) return false;
+  for (const field of ['title', 'description', 'status', 'priority', 'assignee_id', 'parent_id', 'project_id', 'due_date']) {
+    if (Object.prototype.hasOwnProperty.call(body, field) && task[field] !== body[field]) return false;
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'label_ids')) {
+    if (!Array.isArray(task.labels)) return false;
+    const actual = task.labels.map((label) => typeof label === 'string' ? label : label?.id).filter(Boolean).sort();
+    const expected = (Array.isArray(body.label_ids) ? body.label_ids : []).slice().sort();
+    if (actual.length !== expected.length || actual.some((id, index) => id !== expected[index])) return false;
+  }
+  return true;
 }
 
 function parallListResult({data, body, orgId, itemsKey, args, path, limit, extraWarnings = [], governance = false}) {

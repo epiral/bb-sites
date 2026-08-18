@@ -1,26 +1,27 @@
-# Parall 只读 Adapter 使用指南
+# Parall Workspace Adapter 使用指南
 
-`pinix/parall@0.2.0` 面向 Parall Web workspace 的只读数据面。命令契约来自 Server source-exact 基线：
+`pinix/parall@0.3.0` 本地候选在 0.2.0 的 43 个只读命令上增加三个显式确认的 Task 写命令。命令契约来自 Server source-exact 基线：
 
 - commit: `30c4a38f8fc0b570825f309f5118d83d0a088a53`
 - tree: `d4e85bc8cd41072b3c136d4349e160fecd3da158`
 
 这证明请求路径、参数、成功 DTO、分页和错误语义在该源码基线中存在，不证明某个线上环境已经部署同一 commit，也不证明当前账号拥有相应权限。
 
-本版本覆盖 adapter-focused source map 中已确认的 Web workspace GET 路由。它不包含 Clip Registry/managed keys/browser aliases/readiness/grants/executions，不包含任何 POST/PATCH/PUT/DELETE，不包含 Agent-self-only 的 `/agents/me`，也不暴露已弃用的全局 Agent Step 查询。source map 未冻结 DTO 的 Agent runtime/provider/avatar 子路由同样不纳入，避免把存在的路由误写成稳定 Adapter contract。
+本版本覆盖 adapter-focused source map 中已确认的 Web workspace GET 路由，并增加 Task PATCH、Subtask create POST、Task comment POST。它不包含 Clip Registry/managed keys/browser aliases/readiness/grants/executions，不包含任务删除、archive/restore、watcher/subscriber、评论编辑/删除、Agent-self-only 的 `/agents/me`，也不暴露已弃用的全局 Agent Step 查询。source map 未冻结 DTO 的 Agent runtime/provider/avatar 子路由同样不纳入，避免把存在的路由误写成稳定 Adapter contract。
 
 ## 发现与前置条件
 
 先发现在线 Edge 和命令契约，再执行：
 
 ```bash
-PINIX=/tmp/pinixc
+PINIX=/path/to/provenance-verified/pinixc
 EDGE=work-macbook-air       # 替换成 edge list 当前返回的名称
 PROFILE=default             # 替换成用户明确选择的 Parall profile
 
 $PINIX edge list --json
 $PINIX site parall --help --json
 $PINIX site parall tasks --help --json
+$PINIX site parall task-update --help --json
 ```
 
 查看 help 不需要 profile；真正执行命令需要显式 Edge 和 profile：
@@ -29,9 +30,9 @@ $PINIX site parall tasks --help --json
 $PINIX --edge "$EDGE" site parall orgs --profile "$PROFILE" --envelope v1
 ```
 
-Adapter 在 `app.parall.com` 页面 renderer 内读取该 origin 的 `parall_access_token`，并在同一 renderer 内发起显式配置 API origin 的 GET 请求。Token 只用于构造本次 `Authorization: Bearer` Header；Adapter 只接收 API response，不返回或记录 token，也不读取 refresh token、cookie 或其他凭据。
+Adapter 在 `app.parall.com` 页面 renderer 内读取该 origin 的 `parall_access_token`，并在同一 renderer 内发起显式配置 API origin 的请求。Token 只用于构造本次 `Authorization: Bearer` Header；Adapter 只接收 API response，不返回或记录 token，也不读取 refresh token、cookie 或其他凭据。
 
-请求固定为 GET-only、无 body、`credentials=omit`、`redirect=error` 和有限超时。若所选 profile 未登录、页面 credential storage 不可读或 access token 被 Server 拒绝，则返回 `AUTH_REQUIRED`；Adapter 不自行刷新 token。
+只读请求固定为 GET、无 body。写请求只允许下表三个 method/path 形状，并使用有界 JSON body。所有请求均为 `credentials=omit`、`redirect=error` 和有限超时。若所选 profile 未登录、页面 credential storage 不可读或 access token 被 Server 拒绝，则返回 `AUTH_REQUIRED`；Adapter 不自行刷新 token。
 
 ## 基本工作流
 
@@ -99,6 +100,60 @@ $PINIX --edge "$EDGE" site parall tasks \
 `tasks` 支持 `q,status,priority,assignee_id,creator_id,parent_id,project_id,label_ids,scope,sort,order,limit,cursor`。`parent_id` 是父任务 ID；项目过滤必须用 `project_id`。默认 `parent_id=null` 只取顶层任务。`limit` 默认 50、上限 200。
 
 `member-tasks` 和 `agent-tasks` 由 Server 固定为 `todo,in_progress` 的待处理视图，不应解释为成员/Agent 的全部任务历史。
+
+### Task 写命令
+
+写命令必须显式选择 Edge、profile 和资源 ID，并精确传 `--confirm write`。推荐始终使用 `--envelope v1` 读取 mutation receipt；不得在 timeout、断连或 `OUTCOME_UNKNOWN` 后自动重放。
+
+| 命令 | API | 作用 |
+|---|---|---|
+| `task-update` | `PATCH /orgs/{org_id}/tasks/{task_id}` | 更新 Task 或 Subtask 的明确字段 |
+| `subtask-create` | `POST /orgs/{org_id}/tasks` | 以 `project_id` + `parent_id` 创建 Subtask |
+| `task-comment-add` | `POST /orgs/{org_id}/comments` | 以 `target_uri=prll://{task_id}` 添加回执链接或 blocked 说明 |
+
+更新标题、状态、负责人和 due date：
+
+```bash
+$PINIX --edge "$EDGE" site parall task-update \
+  --profile "$PROFILE" --org_id "$ORG_ID" --task_id tsk_xxx \
+  --title "Official Edge packaged launch" --status in_progress \
+  --assignee_id usr_xxx --due_date 2026-08-31 \
+  --confirm write --envelope v1
+```
+
+清除值使用独立布尔参数，不能传字面量 `null`：
+
+```bash
+$PINIX --edge "$EDGE" site parall task-update \
+  --profile "$PROFILE" --org_id "$ORG_ID" --task_id tsk_xxx \
+  --clear_assignee true --clear_due_date true \
+  --confirm write --envelope v1
+```
+
+`task-update` 支持 `title,status,priority,description,assignee_id,due_date,label_ids,parent_id`，以及对应 `clear_assignee,clear_due_date,clear_labels,clear_parent`。状态仅允许 `todo|in_progress|in_review|done|canceled`；priority 仅允许 `high|normal|low`。`clear_parent=true` 把任务设为当前 project 的顶层 Task；`parent_id=tsk_xxx` 把它设为该任务的 Subtask。
+
+Server source-exact 合同规定更新时 `project_id` immutable，因此本 Adapter 不提供跨 project 移动，传入该参数会返回 `UNSUPPORTED_MUTATION`。
+
+创建 Subtask：
+
+```bash
+$PINIX --edge "$EDGE" site parall subtask-create \
+  --profile "$PROFILE" --org_id "$ORG_ID" --project_id prj_xxx \
+  --parent_id tsk_parent --title "Run packaged smoke" \
+  --assignee_id usr_xxx --due_date 2026-08-31 \
+  --confirm write --envelope v1
+```
+
+添加评论：
+
+```bash
+$PINIX --edge "$EDGE" site parall task-comment-add \
+  --profile "$PROFILE" --org_id "$ORG_ID" --task_id tsk_xxx \
+  --body "Receipt: prll://msg_xxx" \
+  --confirm write --envelope v1
+```
+
+Task PATCH 是窄字段 patch，但 Server 没有通用 mutation idempotency key；Task create 和 comment create 也是非幂等 POST。`--confirm write` 只防止意外执行，不是去重键。Task 更新/创建可能产生 activity、assignee/watcher 通知或 Agent dispatch；评论会 fan out 给 watchers 与被引用成员/Agent，human author 还可能被自动加为 watcher。命令返回 HTTP 成功且校验返回 resource ID 后才报告 `mutation_confirmed`；不确定结果返回 `OUTCOME_UNKNOWN`，必须先读回 Task/Subtask/评论再决定下一步。
 
 ### Chat 与 Message
 
@@ -176,15 +231,22 @@ $PINIX --edge "$EDGE" site parall tasks \
 | `RATE_LIMITED` | 遵守 `Retry-After` 节奏；它不是通用重试授权 |
 | `NETWORK_ERROR` | 页面请求未完成；不是空 workspace |
 | `EDGE_ERROR` | 页面/Edge 未 ready 或断连；不是空结果 |
+| `CONFIRMATION_REQUIRED` | 写命令缺少精确的 `--confirm write`；请求尚未发送 |
+| `UNSUPPORTED_MUTATION` | 请求了 Server 合同不支持的 mutation，例如迁移 `project_id` |
+| `WRITE_PATH_NOT_ALLOWED` | method/path 不在 Adapter 写 allowlist；请求尚未发送 |
+| `OUTCOME_UNKNOWN` | 写请求可能已到达 Server 但没有确认响应；先只读核验，禁止自动重试 |
 
 Server canonical error 是 `{error:{code,message,status,action?,resource_uri?,approvable?,details?}}`。Adapter 保留已确认字段并递归脱敏 details；`action` 是尝试的动作，不是恢复提示。Server 不自动处理 401 refresh，Adapter 也不盲目重试。
 
 ## 安全与已知限制
 
-- 所有命令是 GET-only、`side_effect=read_only`，并声明 `max_concurrency=1`；元数据不等于运行时自动加锁，调用方仍应串行。
+- 43 个读取命令声明 `side_effect=read_only`；三个写命令声明 `side_effect=write`、`retry_safety=unsafe_no_auto_retry`，并要求 `--confirm write`。
+- 所有命令声明 `max_concurrency=1`；元数据不等于运行时自动加锁，调用方仍应串行。
+- renderer 与 Adapter helper 同时限制写 method/path：仅 Task PATCH、Task create POST、Task comment POST；没有任意 URL、header、token 或 method 参数。
 - profile 只选择 browser session，不能证明账号身份；`authenticated_as` 保持 `unknown`。
 - 返回数据属于私有 workspace。Adapter 递归屏蔽 token、secret、API key、cookie、authorization、password、JWT 等字段。
 - source URL 去除 userinfo、fragment，以及 cursor/before/after/query/credential 类参数。
 - Agent instructions 是 no-store 数据；Session/Step 可能是治理级或 context-redacted 投影，应按 warnings 最小化保留和传播。
 - 该 source map 不证明 production/staging 的部署 commit、feature flag、用户角色或 grant。
 - Bearer token 只在页面 renderer 内读取和使用；不得通过 `tab.eval` 返回值、日志、错误、fixture 或 envelope 输出凭据。
+- 写命令当前没有 Server idempotency key，也没有 CAS/base version；不要让调度器、Shell 或人工在结果不明时盲目重放。

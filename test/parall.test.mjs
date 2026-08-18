@@ -26,6 +26,9 @@ function clone(value) {
 }
 
 const capturedRequests = [];
+const capturedMethods = [];
+const capturedBodies = [];
+const capturedHeaders = [];
 const capturedPageExpressions = [];
 const capturedAuthorization = [];
 const pageStorageReads = [];
@@ -58,6 +61,9 @@ const fixtureRoutes = new Map([
   ["/api/v1/orgs/org_demo/tasks/tsk_one/subtasks", "task_subtasks"],
   ["/api/v1/orgs/org_demo/tasks/tsk_one/watchers", "task_watchers"],
   ["/api/v1/orgs/org_demo/tasks/tsk_one/relations", "task_relations"],
+  ["PATCH /api/v1/orgs/org_demo/tasks/tsk_one", "task_updated"],
+  ["POST /api/v1/orgs/org_demo/tasks", "subtask_created"],
+  ["POST /api/v1/orgs/org_demo/comments", "task_comment"],
   ["/api/v1/orgs/org_demo/task-relations", "target_relations"],
   ["/api/v1/orgs/org_demo/inbox", "inbox"],
   ["/api/v1/orgs/org_demo/inbox/unread-count", "inbox_unread"],
@@ -82,21 +88,44 @@ const fixtureRoutes = new Map([
   ["/api/v1/orgs/org_demo/agents/usr_agent/sessions/ses_one/steps/stp_one", "agent_step"]
 ]);
 
-function fakePageFetch(url) {
+function fakePageFetch(url, init = {}) {
   const parsed = new URL(url);
   capturedRequests.push(String(url));
-  const fixtureKey = fixtureRoutes.get(parsed.pathname);
-  if (fixtureKey) return pageResponse(fixtures[fixtureKey]);
+  const method = String(init.method || "GET").toUpperCase();
+  const fixtureKey = fixtureRoutes.get(method + " " + parsed.pathname) || (method === "GET" ? fixtureRoutes.get(parsed.pathname) : null);
+  if (fixtureKey) {
+    const fixture = clone(fixtures[fixtureKey]);
+    if (fixtureKey === "task_updated" && init.body) {
+      Object.assign(fixture, init.body);
+      if (Object.prototype.hasOwnProperty.call(init.body, "label_ids")) {
+        fixture.labels = (init.body.label_ids || []).map((id) => ({id}));
+        delete fixture.label_ids;
+      }
+    }
+    return pageResponse(fixture, true, method === "POST" ? 201 : 200);
+  }
   return pageResponse({error: "not found"}, false, 404);
 }
 
 async function executePageRequest(expression, pageFetchImpl, accessToken) {
   const originalFetch = async (input, init = {}) => {
-    capturedAuthorization.push(new Headers(init.headers || {}).get("Authorization"));
-    assert.equal(init.method, "GET");
+    const headers = new Headers(init.headers || {});
+    const method = String(init.method || "GET").toUpperCase();
+    capturedAuthorization.push(headers.get("Authorization"));
+    capturedMethods.push(method);
+    capturedHeaders.push(Object.fromEntries(headers.entries()));
+    capturedBodies.push(init.body === undefined ? undefined : JSON.parse(String(init.body)));
+    assert.ok(["GET", "POST", "PATCH"].includes(method));
     assert.equal(init.credentials, "omit");
     assert.equal(init.redirect, "error");
-    const result = await pageFetchImpl(String(input));
+    if (method === "GET") {
+      assert.equal(init.body, undefined);
+      assert.equal(headers.get("Content-Type"), null);
+    } else {
+      assert.equal(headers.get("Content-Type"), "application/json");
+      assert.equal(typeof init.body, "string");
+    }
+    const result = await pageFetchImpl(String(input), {method, body: capturedBodies[capturedBodies.length - 1], headers});
     const body = clone(result.body);
     return {
       ok: result.ok,
@@ -145,8 +174,15 @@ function fakeBrowser(pageFetchImpl, executeBridge = false, pageAccessToken = "fi
         const match = expression.match(/const targetPath = ("(?:\\.|[^"])*");/s);
         assert.ok(match, "page request expression must contain an explicit relative API path");
         const targetPath = JSON.parse(match[1]);
+        const methodMatch = expression.match(/const requestMethod = ("(?:\\.|[^"])*");/s);
+        const bodyMatch = expression.match(/const requestBody = ((?:null)|"(?:\\.|[^"])*");/s);
+        const method = methodMatch ? JSON.parse(methodMatch[1]) : "GET";
+        const serializedBody = bodyMatch ? JSON.parse(bodyMatch[1]) : null;
         try {
-          return await pageFetchImpl("https://api.parall.com/api/v1" + targetPath);
+          return await pageFetchImpl("https://api.parall.com/api/v1" + targetPath, {
+            method,
+            body: serializedBody === null ? undefined : JSON.parse(serializedBody)
+          });
         } catch (error) {
           return {ok: false, status: 0, network_error: String(error?.message || error)};
         }
@@ -172,6 +208,13 @@ async function loadAdapter(name, {pageFetchImpl = fakePageFetch, browserEnabled 
   return context.globalThis.__adapter;
 }
 
+async function loadInlineAdapter(source, {pageFetchImpl = fakePageFetch, executeBridge = true} = {}) {
+  const helper = await readFile(join(REPO_ROOT, "parall", "_helper.js"), "utf8");
+  const context = vm.createContext({browser: fakeBrowser(pageFetchImpl, executeBridge), console, URL, URLSearchParams, globalThis: {}});
+  vm.runInContext(`const module = {exports: null}; ${helper}\n${source}\nglobalThis.__adapter = module.exports;`, context, {filename: "inline-parall-adapter.js"});
+  return context.globalThis.__adapter;
+}
+
 function envelope(command, result, args = {}) {
   return buildSiteResultEnvelope({
     siteName: "parall",
@@ -185,23 +228,51 @@ function envelope(command, result, args = {}) {
   });
 }
 
-test("Parall manifest exposes the complete Web workspace read-only surface", async () => {
-  assert.equal(manifest.version, "0.2.0");
+function errorEnvelope(command, error, args = {}) {
+  return buildSiteResultEnvelope({
+    siteName: "parall",
+    commandName: command,
+    manifest,
+    cmdMeta: manifest.commands[command],
+    args,
+    profile: "default",
+    error,
+    retrievedAt: "2026-08-16T00:00:00.000Z"
+  });
+}
+
+async function captureAdapterError(run, expectedCode) {
+  let caught;
+  try {
+    await run();
+  } catch (error) {
+    caught = error;
+  }
+  assert.ok(caught, "expected adapter command to throw");
+  assert.equal(caught.code, expectedCode);
+  return caught;
+}
+
+test("Parall manifest exposes 43 reads and three explicitly confirmed Task writes", async () => {
+  assert.equal(manifest.version, "0.3.0");
   const names = Object.keys(manifest.commands).sort();
+  const writeNames = ["subtask-create", "task-comment-add", "task-update"];
   assert.deepEqual(names, [
     "agent-activity", "agent-instructions", "agent-manager", "agent-monitor", "agent-session", "agent-session-steps",
     "agent-sessions", "agent-step", "agent-tasks", "agents", "chat", "chat-members", "chats", "discoverable-chats",
     "former-members", "inbox", "inbox-unread-count", "me", "member-chats", "member-profile", "member-tasks", "members",
     "message", "message-replies", "message-watchers", "message-watching", "messages", "org", "orgs", "project",
     "project-join-requests", "project-library", "project-members", "project-readers", "project-summary", "projects",
-    "target-task-relations", "task", "task-relations", "task-subtask-summary", "task-subtasks", "task-watchers", "tasks"
+    "subtask-create", "target-task-relations", "task", "task-comment-add", "task-relations", "task-subtask-summary",
+    "task-subtasks", "task-update", "task-watchers", "tasks"
   ]);
-  for (const command of Object.values(manifest.commands)) {
+  for (const [name, command] of Object.entries(manifest.commands)) {
     assert.equal(command.auth, "required");
     assert.equal(command.profile, "required");
-    assert.equal(command.side_effect, "read_only");
+    assert.equal(command.side_effect, writeNames.includes(name) ? "write" : "read_only");
+    assert.equal(command.retry_safety, writeNames.includes(name) ? "unsafe_no_auto_retry" : "safe_with_backoff");
     assert.equal(command.max_concurrency, 1);
-    assert.equal(command.serialization_key, "site:parall:{profile}");
+    assert.equal(command.serialization_key, writeNames.includes(name) ? "site:parall:{profile}:tasks" : "site:parall:{profile}");
     assert.deepEqual(command.output_modes, ["legacy", "envelope_v1"]);
     assert.deepEqual(command.envelope_versions, [SITE_RESULT_ENVELOPE_VERSION]);
   }
@@ -215,7 +286,7 @@ test("Parall manifest exposes the complete Web workspace read-only surface", asy
   assert.deepEqual(implementationFiles, names);
   for (const name of implementationFiles) {
     const source = await readFile(join(REPO_ROOT, "parall", name + ".js"), "utf8");
-    assert.doesNotMatch(source, /method\s*:\s*["'](?:POST|PATCH|PUT|DELETE)["']/i);
+    if (!writeNames.includes(name)) assert.doesNotMatch(source, /parallWrite\s*\(/);
     assert.doesNotMatch(source, /\b(?:click|fill|type|press)\s*\(/);
   }
   for (const excluded of ["agent-me", "agent-step-global", "clip-registry", "send-message", "task-create"]) {
@@ -397,6 +468,195 @@ test("Parall tasks support exact project and opaque cursor filters", async () =>
   assert.equal(request.searchParams.get("limit"), "200");
   assert.equal(request.searchParams.get("scope"), "all");
   assert.equal(request.searchParams.get("order"), "desc");
+});
+
+test("Parall task-update sends a narrow confirmed PATCH with explicit clear semantics", async () => {
+  const update = await loadAdapter("task-update", {executeBridge: true});
+  openedTabs.length = 0;
+  await captureAdapterError(() => update({org_id: "org_demo", task_id: "tsk_one", status: "done"}), "CONFIRMATION_REQUIRED");
+  assert.equal(openedTabs.length, 0);
+  await captureAdapterError(() => update({org_id: "org_demo", task_id: "tsk_one", status: "invalid", confirm: "write"}), "INVALID_ARGUMENT");
+  await captureAdapterError(() => update({org_id: "org_demo", task_id: "tsk_one", due_date: "2026-02-30", confirm: "write"}), "INVALID_ARGUMENT");
+  await captureAdapterError(() => update({org_id: "org_demo", task_id: "tsk_one", assignee_id: "usr_me", clear_assignee: true, confirm: "write"}), "INVALID_ARGUMENT");
+  await captureAdapterError(() => update({org_id: "org_demo", task_id: "tsk_one", project_id: "prj_two", confirm: "write"}), "UNSUPPORTED_MUTATION");
+  await captureAdapterError(() => update({org_id: "org_demo", task_id: "tsk_one", confirm: "write"}), "INVALID_ARGUMENT");
+  assert.equal(openedTabs.length, 0);
+
+  capturedMethods.length = 0;
+  capturedBodies.length = 0;
+  capturedAuthorization.length = 0;
+  pageStorageReads.length = 0;
+  const result = await update({
+    org_id: "org_demo",
+    task_id: "tsk_one",
+    title: "Renamed gate",
+    status: "in_review",
+    priority: "high",
+    description: "Receipt gate",
+    clear_assignee: true,
+    clear_due_date: true,
+    clear_labels: true,
+    clear_parent: true,
+    confirm: "write"
+  });
+  const env = envelope("task-update", result, {org_id: "org_demo", task_id: "tsk_one", description: "Receipt gate", confirm: "write"});
+  assert.equal(env.status, "ok");
+  assert.equal(env.completeness, "complete");
+  assert.equal(env.reason, "mutation_confirmed");
+  assert.equal(env.data.task.id, "tsk_one");
+  assert.equal(env.command.requested_args.description, undefined);
+  assert.equal(env.command.effective_args.description, undefined);
+  assert.equal(env.runtime.manifest_metadata.side_effect, "write");
+  assert.equal(env.runtime.manifest_metadata.retry_safety, "unsafe_no_auto_retry");
+  assert.equal(env.receipts[0].method, "PATCH");
+  assert.equal(env.receipts[0].resource_id, "tsk_one");
+  assert.equal(env.warnings.some((warning) => warning.code === "TASK_UPDATE_FANOUT"), true);
+  assert.deepEqual(capturedMethods, ["PATCH"]);
+  assert.deepEqual(capturedBodies, [{
+    title: "Renamed gate",
+    status: "in_review",
+    priority: "high",
+    description: "Receipt gate",
+    assignee_id: null,
+    due_date: null,
+    label_ids: null,
+    parent_id: null
+  }]);
+  assert.deepEqual(pageStorageReads, ["parall_access_token"]);
+  assert.deepEqual(capturedAuthorization, ["Bearer fixture-only-secret"]);
+  assert.equal(JSON.stringify(result).includes("fixture-only-secret"), false);
+  assert.equal(unwrapSiteAdapterCarrier(result, manifest.commands["task-update"]).task.id, "tsk_one");
+});
+
+test("Parall task-update can assign, date, label, and re-parent an existing Subtask", async () => {
+  const update = await loadAdapter("task-update", {executeBridge: true});
+  capturedBodies.length = 0;
+  const result = await update({
+    org_id: "org_demo",
+    task_id: "tsk_one",
+    assignee_id: "usr_other",
+    due_date: "2026-08-31",
+    label_ids: "lbl_one,lbl_two,lbl_one",
+    parent_id: "tsk_parent",
+    confirm: "write"
+  });
+  assert.equal(result.data.task.id, "tsk_one");
+  assert.deepEqual(capturedBodies.slice(-1)[0], {
+    assignee_id: "usr_other",
+    due_date: "2026-08-31",
+    label_ids: ["lbl_one", "lbl_two"],
+    parent_id: "tsk_parent"
+  });
+});
+
+test("Parall subtask-create sends the source-exact POST and reports non-idempotency", async () => {
+  const create = await loadAdapter("subtask-create", {executeBridge: true});
+  openedTabs.length = 0;
+  await captureAdapterError(() => create({org_id: "org_demo", project_id: "prj_one", parent_id: "tsk_one", title: "Run smoke"}), "CONFIRMATION_REQUIRED");
+  assert.equal(openedTabs.length, 0);
+
+  capturedMethods.length = 0;
+  capturedBodies.length = 0;
+  const result = await create({
+    org_id: "org_demo",
+    project_id: "prj_one",
+    parent_id: "tsk_one",
+    title: "Run packaged smoke",
+    description: "Fixture-only Subtask",
+    status: "todo",
+    priority: "normal",
+    assignee_id: "usr_other",
+    due_date: "2026-08-31",
+    label_ids: "lbl_one,lbl_two",
+    confirm: "write"
+  });
+  const env = envelope("subtask-create", result, {org_id: "org_demo", project_id: "prj_one", parent_id: "tsk_one", title: "Run packaged smoke", confirm: "write"});
+  assert.equal(env.data.task.id, "tsk_created");
+  assert.equal(env.data.task.parent_id, "tsk_one");
+  assert.equal(env.receipts[0].http_status, 201);
+  assert.equal(env.warnings.some((warning) => warning.code === "NON_IDEMPOTENT_CREATE"), true);
+  assert.equal(env.warnings.some((warning) => warning.code === "TASK_CREATE_FANOUT"), true);
+  assert.deepEqual(capturedMethods, ["POST"]);
+  assert.deepEqual(capturedBodies, [{
+    title: "Run packaged smoke",
+    project_id: "prj_one",
+    parent_id: "tsk_one",
+    description: "Fixture-only Subtask",
+    status: "todo",
+    priority: "normal",
+    assignee_id: "usr_other",
+    due_date: "2026-08-31",
+    label_ids: ["lbl_one", "lbl_two"]
+  }]);
+});
+
+test("Parall task-comment-add sends one bounded POST and redacts comment args from envelope metadata", async () => {
+  const addComment = await loadAdapter("task-comment-add", {executeBridge: true});
+  openedTabs.length = 0;
+  await captureAdapterError(() => addComment({org_id: "org_demo", task_id: "tsk_one", body: "Receipt"}), "CONFIRMATION_REQUIRED");
+  await captureAdapterError(() => addComment({org_id: "org_demo", task_id: "tsk_one", body: " ", confirm: "write"}), "INVALID_ARGUMENT");
+  await captureAdapterError(() => addComment({org_id: "org_demo", task_id: "tsk_one", body: "界".repeat(22000), confirm: "write"}), "INVALID_ARGUMENT");
+  assert.equal(openedTabs.length, 0);
+
+  capturedMethods.length = 0;
+  capturedBodies.length = 0;
+  const result = await addComment({org_id: "org_demo", task_id: "tsk_one", body: "Receipt: prll://msg_fixture", confirm: "write"});
+  const env = envelope("task-comment-add", result, {org_id: "org_demo", task_id: "tsk_one", body: "Receipt: prll://msg_fixture", confirm: "write"});
+  assert.equal(env.data.comment.id, "cmt_receipt");
+  assert.equal(env.command.requested_args.body, undefined);
+  assert.equal(env.command.effective_args.body, undefined);
+  assert.equal(env.warnings.some((warning) => warning.code === "NON_IDEMPOTENT_COMMENT"), true);
+  assert.equal(env.warnings.some((warning) => warning.code === "COMMENT_FANOUT"), true);
+  assert.deepEqual(capturedMethods, ["POST"]);
+  assert.deepEqual(capturedBodies, [{target_uri: "prll://tsk_one", body: "Receipt: prll://msg_fixture"}]);
+});
+
+test("Parall writes fail closed on paths and never auto-retry an unknown outcome", async () => {
+  openedTabs.length = 0;
+  const forbidden = await loadInlineAdapter('module.exports = async function() { return parallThrow((await parallWrite("/orgs/org_demo/members", "POST", {role:"owner"})).result); };');
+  await captureAdapterError(() => forbidden({}), "WRITE_PATH_NOT_ALLOWED");
+  assert.equal(openedTabs.length, 0);
+
+  let attempts = 0;
+  const create = await loadAdapter("subtask-create", {
+    executeBridge: true,
+    pageFetchImpl: async () => {
+      attempts += 1;
+      throw new Error("fixture disconnect");
+    }
+  });
+  const unknown = await captureAdapterError(
+    () => create({org_id: "org_demo", project_id: "prj_one", parent_id: "tsk_one", title: "One attempt", confirm: "write"}),
+    "OUTCOME_UNKNOWN"
+  );
+  assert.equal(unknown.details.outcome, "unknown");
+  assert.equal(unknown.details.manual_verification_required, true);
+  const unknownEnv = errorEnvelope("subtask-create", unknown, {org_id: "org_demo", project_id: "prj_one", parent_id: "tsk_one", title: "One attempt", confirm: "write"});
+  assert.equal(unknownEnv.status, "error");
+  assert.equal(unknownEnv.completeness, "unknown");
+  assert.equal(unknownEnv.reason, "outcome_unknown");
+  assert.equal(unknownEnv.error.details.manual_verification_required, true);
+  assert.equal(attempts, 1);
+
+  const staleSuccess = await loadAdapter("task-update", {
+    executeBridge: true,
+    pageFetchImpl: async () => pageResponse(fixtures.task, true, 200)
+  });
+  await captureAdapterError(
+    () => staleSuccess({org_id: "org_demo", task_id: "tsk_one", title: "Expected new title", confirm: "write"}),
+    "OUTCOME_UNKNOWN"
+  );
+
+  const conflict = await loadAdapter("task-update", {
+    executeBridge: true,
+    pageFetchImpl: async () => pageResponse({error: {code: "STALE_GENERATION", message: "Stale generation", status: 409}}, false, 409)
+  });
+  const conflictResult = await captureAdapterError(
+    () => conflict({org_id: "org_demo", task_id: "tsk_one", status: "done", confirm: "write"}),
+    "STALE_GENERATION"
+  );
+  assert.equal(conflictResult.details.http_status, 409);
+  assert.match(conflictResult.hint, /Do not automatically retry/);
 });
 
 test("Parall inbox, chats and messages preserve cursor pagination and redact it from source URL", async () => {

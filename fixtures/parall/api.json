@@ -116,6 +116,49 @@
     "created_at": "2026-08-15T00:00:00Z",
     "updated_at": "2026-08-16T00:00:00Z"
   },
+  "task_updated": {
+    "id": "tsk_one",
+    "identifier": "FP-1",
+    "title": "Renamed gate",
+    "description": "Receipt gate",
+    "org_id": "org_demo",
+    "project_id": "prj_one",
+    "parent_id": null,
+    "status": "in_review",
+    "priority": "high",
+    "assignee_id": null,
+    "creator_id": "usr_me",
+    "due_date": null,
+    "labels": [],
+    "created_at": "2026-08-15T00:00:00Z",
+    "updated_at": "2026-08-18T00:00:00Z"
+  },
+  "subtask_created": {
+    "id": "tsk_created",
+    "identifier": "FP-3",
+    "title": "Run packaged smoke",
+    "description": "Fixture-only Subtask",
+    "org_id": "org_demo",
+    "project_id": "prj_one",
+    "parent_id": "tsk_one",
+    "status": "todo",
+    "priority": "normal",
+    "assignee_id": "usr_other",
+    "creator_id": "usr_me",
+    "due_date": "2026-08-31",
+    "labels": [{"id": "lbl_one"}, {"id": "lbl_two"}],
+    "created_at": "2026-08-18T00:00:00Z",
+    "updated_at": "2026-08-18T00:00:00Z"
+  },
+  "task_comment": {
+    "id": "cmt_receipt",
+    "org_id": "org_demo",
+    "target_uri": "prll://tsk_one",
+    "author_id": "usr_me",
+    "body": "Receipt: prll://msg_fixture",
+    "created_at": "2026-08-18T00:00:00Z",
+    "updated_at": "2026-08-18T00:00:00Z"
+  },
   "subtask_summary": {
     "data": [
       {"task_id": "tsk_one", "total": 3, "done": 1}

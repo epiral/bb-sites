@@ -1,8 +1,8 @@
 {
   "name": "parall",
-  "description": "Parall Web workspace read-only API surface for identity, organizations, members, projects, tasks, inbox, chats, messages, agents, sessions, and steps",
+  "description": "Parall Web workspace reads plus explicitly confirmed Task, Subtask, and Task comment mutations",
   "domain": "app.parall.com",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "commands": {
     "me": {
       "description": "读取当前 Parall session 的用户摘要",
@@ -380,6 +380,57 @@
       "auth": "required", "profile": "required", "side_effect": "read_only", "retry_safety": "safe_with_backoff",
       "max_concurrency": 1, "serialization_key": "site:parall:{profile}", "output_modes": ["legacy", "envelope_v1"], "timeout_class": "standard", "envelope_versions": ["pinix.site-result-envelope.v1"],
       "params": {"org_id": {"type": "string", "required": true, "description": "组织 ID"}, "agent_id": {"type": "string", "required": true, "description": "Agent ID"}, "session_id": {"type": "string", "required": true, "description": "Session ID"}, "step_id": {"type": "string", "required": true, "description": "Step ID"}}
+    },
+    "task-update": {
+      "description": "显式确认后更新 Task 或 Subtask 的可变字段；不支持迁移 project_id",
+      "auth": "required", "profile": "required", "side_effect": "write", "retry_safety": "unsafe_no_auto_retry",
+      "max_concurrency": 1, "serialization_key": "site:parall:{profile}:tasks", "output_modes": ["legacy", "envelope_v1"], "timeout_class": "standard", "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {
+        "org_id": {"type": "string", "required": true, "description": "组织 ID"},
+        "task_id": {"type": "string", "required": true, "description": "要更新的 Task 或 Subtask ID"},
+        "title": {"type": "string", "required": false, "description": "新标题"},
+        "status": {"type": "string", "required": false, "description": "todo、in_progress、in_review、done 或 canceled"},
+        "assignee_id": {"type": "string", "required": false, "description": "新 assignee 的 usr_ ID"},
+        "clear_assignee": {"type": "boolean", "required": false, "description": "传 true 清除 assignee"},
+        "due_date": {"type": "string", "required": false, "description": "新 due date，YYYY-MM-DD"},
+        "clear_due_date": {"type": "boolean", "required": false, "description": "传 true 清除 due date"},
+        "priority": {"type": "string", "required": false, "description": "high、normal 或 low"},
+        "description": {"type": "string", "required": false, "redact": true, "description": "新 description；空字符串表示清空"},
+        "label_ids": {"type": "string", "required": false, "description": "逗号分隔的 lbl_ ID；替换完整标签集"},
+        "clear_labels": {"type": "boolean", "required": false, "description": "传 true 清除全部标签"},
+        "parent_id": {"type": "string", "required": false, "description": "新父 Task ID，用于改成 Subtask"},
+        "clear_parent": {"type": "boolean", "required": false, "description": "传 true 改为当前 project 的顶层 Task"},
+        "confirm": {"type": "string", "required": true, "description": "必须精确传 write"}
+      }
+    },
+    "subtask-create": {
+      "description": "显式确认后在指定 project 和父 Task 下创建 Subtask",
+      "auth": "required", "profile": "required", "side_effect": "write", "retry_safety": "unsafe_no_auto_retry",
+      "max_concurrency": 1, "serialization_key": "site:parall:{profile}:tasks", "output_modes": ["legacy", "envelope_v1"], "timeout_class": "standard", "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {
+        "org_id": {"type": "string", "required": true, "description": "组织 ID"},
+        "project_id": {"type": "string", "required": true, "description": "父 Task 所属 project ID"},
+        "parent_id": {"type": "string", "required": true, "description": "父 Task ID"},
+        "title": {"type": "string", "required": true, "description": "Subtask 标题"},
+        "description": {"type": "string", "required": false, "redact": true, "description": "可选 description"},
+        "status": {"type": "string", "required": false, "description": "todo、in_progress、in_review、done 或 canceled"},
+        "priority": {"type": "string", "required": false, "description": "high、normal 或 low"},
+        "assignee_id": {"type": "string", "required": false, "description": "可选 usr_ assignee ID"},
+        "due_date": {"type": "string", "required": false, "description": "可选 due date，YYYY-MM-DD"},
+        "label_ids": {"type": "string", "required": false, "description": "可选逗号分隔 lbl_ ID"},
+        "confirm": {"type": "string", "required": true, "description": "必须精确传 write"}
+      }
+    },
+    "task-comment-add": {
+      "description": "显式确认后给 Task 添加评论；可用于回执链接和 blocked 说明",
+      "auth": "required", "profile": "required", "side_effect": "write", "retry_safety": "unsafe_no_auto_retry",
+      "max_concurrency": 1, "serialization_key": "site:parall:{profile}:tasks", "output_modes": ["legacy", "envelope_v1"], "timeout_class": "standard", "envelope_versions": ["pinix.site-result-envelope.v1"],
+      "params": {
+        "org_id": {"type": "string", "required": true, "description": "组织 ID"},
+        "task_id": {"type": "string", "required": true, "description": "目标 Task ID"},
+        "body": {"type": "string", "required": true, "redact": true, "description": "评论正文，最多 64 KiB UTF-8"},
+        "confirm": {"type": "string", "required": true, "description": "必须精确传 write"}
+      }
     }
   }
 }
